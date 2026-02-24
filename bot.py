@@ -10,6 +10,8 @@ BTN_SALON = "Салон"
 BTN_SHOP = "Магазин косметики"
 BTN_ADMIN = "Зв'язатися з адміністратором"
 BTN_BACK = "⬅️ Назад"
+BTN_REDKEN = "Redken"
+BTN_EG = "EG by Gromova"
 BTN_PRICE = "Прайс салону"
 
 SVC_CAMO = "Камуфляж сивини"
@@ -174,6 +176,12 @@ def price_menu():
     markup.row(BTN_BACK)
     return markup
 
+def shop_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(BTN_REDKEN, BTN_EG)
+    markup.row(BTN_BACK)
+    return markup
+    
 # ===== Start =====
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -188,7 +196,14 @@ def open_salon(message):
                      "Розділ: Салон ✂️\nОберіть, що потрібно:",
                      reply_markup=salon_menu())
 
-@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
+@bot.message_handler(func=lambda m: m.text == BTN_SHOP)
+def open_shop(message):
+    bot.send_message(
+        message.chat.id,
+        "Магазин косметики 🛍️\nОберіть бренд:",
+        reply_markup=shop_menu()
+        
+    )@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
 def open_price(message):
     bot.send_message(message.chat.id,
                      "Прайс салону 💰\nОберіть послугу:",
