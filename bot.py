@@ -2,23 +2,32 @@ import os
 import telebot
 from telebot import types
 
+# =========================
+# CONFIG
+# =========================
 TOKEN = os.environ.get("TOKEN")
 if not TOKEN:
-    raise ValueError("TOKEN not found in environment variables")
+    raise RuntimeError("TOKEN env var is not set")
 
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(TOKEN, parse_mode=None)
 
-# ===== Кнопки =====
+ADMIN_LINK = "https://t.me/beautyspace_admin"
+
+# =========================
+# BUTTONS (UA UI)
+# =========================
+BTN_HOME = "🏠 Головне меню"
+BTN_BACK = "⬅️ Назад"
+
 BTN_SALON = "Салон"
 BTN_SHOP = "Магазин косметики"
 BTN_ADMIN = "Зв'язатися з адміністратором"
-BTN_BACK = "⬅️ Назад"
+BTN_PRICE = "Прайс салону"
 
 BTN_REDKEN = "Redken"
 BTN_EG = "EG by Gromova"
-BTN_PRICE = "Прайс салону"
 
-# ===== Лінійки Redken =====
+# Redken lines
 RD_ACIDIC = "Acidic Bonding"
 RD_ALLSOFT = "All Soft"
 RD_MEGA_CURL = "All Soft Mega Curls"
@@ -27,17 +36,23 @@ RD_EXTREME = "Extreme"
 RD_FRIZZ = "Frizz Dismiss"
 RD_VOLUME = "Volume Injection"
 
-# ===== Кнопки товара Acidic =====
+# Product buttons
 BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
-BTN_VOL_300 = "300 мл — 950 грн"
-BTN_VOL_500 = "500 мл — 1250 грн"
 BTN_ADD_TO_CART = "Додати в кошик"
 BTN_HOW_TO_USE = "Як правильно використовувати"
-BTN_BACK_PRODUCT = "⬅ Назад до товару"  # кнопку оставляем как есть
+BTN_CART = "🧺 Кошик"
 
-ADMIN_LINK = "https://t.me/beautyspace_admin"
+# Acidic volumes
+BTN_VOL_300 = "300 мл — 950 грн"
+BTN_VOL_500 = "500 мл — 1250 грн"
 
-# ===== Послуги =====
+# Cart actions
+BTN_CART_SHOW = "Показати кошик"
+BTN_CART_CLEAR = "Очистити кошик"
+
+# =========================
+# SERVICES (can keep your texts)
+# =========================
 SVC_CAMO = "Камуфляж сивини"
 SVC_TONE = "Тонування"
 SVC_COLOR = "Фарбування"
@@ -48,304 +63,429 @@ SVC_DARK_OUT = "Вихід з темного кольору"
 SVC_CUT = "Стрижка"
 SVC_RECON = "Реконструкція 8D by Gromova"
 
-# ===== Тексты услуг =====
 SERVICE_TEXTS = {
-    SVC_CAMO: (
-        "Камуфляж сивини ✨\n\n"
-        "Вартість: від 3000 грн\n"
-        "Тривалість: до 1 години\n\n"
-        "Що входить у процедуру:\n"
-        "• консультація майстра\n"
-        "• підбір відтінку\n"
-        "• м’яке тонування сивини без зміни натурального кольору\n"
-        "• стабілізація кольору\n"
-        "• рекомендації по догляду\n\n"
-        "⚠️ Камуфляж підходить не всім.\n"
-        "Перед записом обов’язкова консультація.\n\n"
-        "Реконструкція 8D by Gromova оплачується окремо."
-    ),
-    SVC_TONE: (
-        "Тонування 🎨\n\n"
-        "Вартість: від 3000 грн\n\n"
-        "Що входить:\n"
-        "• оновлення відтінку фарбником Redken\n"
-        "• корекція нюансу кольору\n"
-        "• стабілізація\n\n"
-        "Реконструкція 8D by Gromova оплачується окремо."
-    ),
-    SVC_COLOR: (
-        "Стійке фарбування 🖤\n\n"
-        "Вартість: від 3500 грн\n\n"
-        "Що входить:\n"
-        "• консультація\n"
-        "• фарбування кореня або кореня + довжини\n"
-        "• стабілізація кольору\n\n"
-        "Реконструкція 8D by Gromova оплачується окремо."
-    ),
-    SVC_INTEGR: (
-        "Інтеграція сивини 🤍\n\n"
-        "Вартість: від 12000 грн\n"
-        "Тривалість: 6–10 годин\n\n"
-        "Перед записом обов’язкова консультація.\n\n"
-        "Реконструкція 8D by Gromova обов’язкова та оплачується додатково."
-    ),
-    SVC_HIGHL: (
-        "Мелірування 🌟\n\n"
-        "Вартість: від 12000 грн\n"
-        "Тривалість: 4–6 годин\n\n"
-        "Реконструкція 8D by Gromova обов’язкова та оплачується додатково."
-    ),
-    SVC_AIRTOUCH: (
-        "Airtouch 💨\n\n"
-        "Вартість: від 12000 грн\n"
-        "Тривалість: 6–8 годин\n\n"
-        "Реконструкція 8D by Gromova обов’язкова та оплачується додатково."
-    ),
-    SVC_DARK_OUT: (
-        "Вихід з темного кольору 🚪\n\n"
-        "Вартість: від 15000 грн\n\n"
-        "⚠️ Перед записом обов’язкова консультація.\n"
-        "Реконструкція 8D by Gromova обов’язкова та оплачується додатково."
-    ),
-    SVC_CUT: (
-        "Стрижка ✂️\n\n"
-        "Вартість: 1200 грн\n\n"
-        "Що входить:\n"
-        "• консультація\n"
-        "• миття голови\n"
-        "• укладка"
-    ),
-    SVC_RECON: (
-        "Реконструкція 8D by Gromova 🧬\n\n"
-        "Вартість: від 2500 грн\n"
-        "Тривалість: до 2 годин\n\n"
-        "8D by Gromova — авторська система глибокого відновлення волосся."
-    ),
+    SVC_CAMO: "Камуфляж сивини ✨\n\nВартість: від 3000 грн\nТривалість: до 1 години\n\n"
+              "Що входить у процедуру:\n• консультація майстра\n• підбір відтінку\n"
+              "• м’яке тонування сивини без зміни натурального кольору\n• стабілізація кольору\n"
+              "• рекомендації по догляду\n\n⚠️ Камуфляж підходить не всім.\n"
+              "Перед записом обов’язкова консультація.\n\n"
+              "Реконструкція 8D by Gromova оплачується окремо.",
+
+    SVC_TONE: "Тонування 🎨\n\nВартість: від 3000 грн\n\nЩо входить:\n"
+              "• оновлення відтінку фарбником Redken\n• корекція нюансу кольору\n• стабілізація\n\n"
+              "Реконструкція 8D by Gromova оплачується окремо.",
+
+    SVC_COLOR: "Стійке фарбування 🖤\n\nВартість: від 3500 грн\n\n"
+               "Що входить:\n• консультація\n• фарбування кореня або кореня + довжини\n• стабілізація кольору\n\n"
+               "Реконструкція 8D by Gromova оплачується окремо.",
+
+    SVC_INTEGR: "Інтеграція сивини 🤍\n\nВартість: від 12000 грн\nТривалість: 6–10 годин\n\n"
+                "Перед записом обов’язкова консультація.\n\n"
+                "Реконструкція 8D by Gromova обов’язкова та оплачується додатково.",
+
+    SVC_HIGHL: "Мелірування 🌟\n\nВартість: від 12000 грн\nТривалість: 4–6 годин\n\n"
+               "Реконструкція 8D by Gromova обов’язкова та оплачується додатково.",
+
+    SVC_AIRTOUCH: "Airtouch 💨\n\nВартість: від 12000 грн\nТривалість: 6–8 годин\n\n"
+                  "Реконструкція 8D by Gromova обов’язкова та оплачується додатково.",
+
+    SVC_DARK_OUT: "Вихід з темного кольору 🚪\n\nВартість: від 15000 грн\n\n"
+                  "⚠️ Перед записом обов’язкова консультація.\n"
+                  "Реконструкція 8D by Gromova обов’язкова та оплачується додатково.",
+
+    SVC_CUT: "Стрижка ✂️\n\nВартість: 1200 грн\n\n"
+             "Що входить:\n• консультація\n• миття голови\n• укладка",
+
+    SVC_RECON: "Реконструкція 8D by Gromova 🧬\n\nВартість: від 2500 грн\nТривалість: до 2 годин\n\n"
+               "8D by Gromova — авторська система глибокого відновлення волосся."
 }
 
-# ===== Фото/опис товару Acidic =====
-ACIDIC_PHOTO_URL = "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg"
-ACIDIC_CAPTION = "Redken Acidic Bonding Shampoo 300 мл\n\nВідновлюючий шампунь для пошкодженого волосся."
+# =========================
+# PRODUCTS (template)
+# =========================
+PRODUCTS = {
+    "acidic_shampoo": {
+        "title": "Redken Acidic Bonding Shampoo",
+        "photo": "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg",
+        "short": "Відновлюючий шампунь для пошкодженого волосся.",
+        "how_to_use": (
+            "Як використовувати:\n"
+            "1) Намочіть волосся.\n"
+            "2) Нанесіть шампунь на шкіру голови.\n"
+            "3) Спіньте 1–2 хвилини.\n"
+            "4) Змийте.\n"
+            "5) Повторіть за потреби.\n\n"
+            "Після — бальзам або маска."
+        ),
+        "volumes": {
+            BTN_VOL_300: {"ml": 300, "price": 950},
+            BTN_VOL_500: {"ml": 500, "price": 1250},
+        }
+    }
+}
 
+# =========================
+# STATE (navigation stack + selected options + cart)
+# =========================
+user_nav = {}      # chat_id -> [screen1, screen2, ...]
+user_selected = {} # chat_id -> dict (selected product, volume, etc.)
+user_cart = {}     # chat_id -> list of items
 
-# ===== Клавиатуры =====
-def main_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(BTN_SALON, BTN_SHOP)
-    markup.row(BTN_ADMIN)
-    return markup
+# Screen names
+SCR_MAIN = "main"
+SCR_SALON = "salon"
+SCR_PRICE = "price"
+SCR_SHOP = "shop"
+SCR_REDKEN = "redken"
+SCR_PRODUCT_ACIDIC = "product_acidic"
+SCR_VOL_ACIDIC = "vol_acidic"
+SCR_CART = "cart"
 
+# =========================
+# KEYBOARDS
+# =========================
+def kb_main():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_SALON, BTN_SHOP)
+    m.row(BTN_CART)
+    m.row(BTN_ADMIN)
+    return m
 
-def salon_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(BTN_PRICE)
-    markup.row(BTN_ADMIN)
-    markup.row(BTN_BACK)
-    return markup
+def kb_salon():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_PRICE)
+    m.row(BTN_ADMIN)
+    m.row(BTN_HOME)
+    return m
 
+def kb_price():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(SVC_CAMO, SVC_INTEGR)
+    m.row(SVC_TONE, SVC_COLOR)
+    m.row(SVC_HIGHL, SVC_AIRTOUCH)
+    m.row(SVC_DARK_OUT, SVC_CUT)
+    m.row(SVC_RECON)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
 
-def price_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(SVC_CAMO, SVC_INTEGR)
-    markup.row(SVC_TONE, SVC_COLOR)
-    markup.row(SVC_HIGHL, SVC_AIRTOUCH)
-    markup.row(SVC_DARK_OUT, SVC_CUT)
-    markup.row(SVC_RECON)
-    markup.row(BTN_BACK)
-    return markup
+def kb_shop():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_REDKEN, BTN_EG)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
 
+def kb_redken():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(RD_ACIDIC, RD_ALLSOFT)
+    m.row(RD_MEGA_CURL, RD_BLONDAGE)
+    m.row(RD_EXTREME, RD_FRIZZ)
+    m.row(RD_VOLUME)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
 
-def shop_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(BTN_REDKEN, BTN_EG)
-    markup.row(BTN_BACK)
-    return markup
+def kb_product():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_CHOOSE_VOLUME)
+    m.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
 
+def kb_volumes():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_VOL_300, BTN_VOL_500)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
 
-def redken_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(RD_ACIDIC, RD_ALLSOFT)
-    markup.row(RD_MEGA_CURL, RD_BLONDAGE)
-    markup.row(RD_EXTREME, RD_FRIZZ)
-    markup.row(RD_VOLUME)
-    markup.row(BTN_BACK)
-    return markup
+def kb_cart():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_CART_SHOW, BTN_CART_CLEAR)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
 
+# =========================
+# NAV HELPERS
+# =========================
+def nav_init(chat_id: int):
+    if chat_id not in user_nav:
+        user_nav[chat_id] = []
+    if chat_id not in user_selected:
+        user_selected[chat_id] = {}
+    if chat_id not in user_cart:
+        user_cart[chat_id] = []
 
-def acidic_volume_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(BTN_VOL_300, BTN_VOL_500)
-    markup.row(BTN_BACK_PRODUCT)
-    return markup
+def nav_go(chat_id: int, screen: str):
+    nav_init(chat_id)
+    user_nav[chat_id].append(screen)
 
+def nav_back(chat_id: int):
+    nav_init(chat_id)
+    if len(user_nav[chat_id]) > 1:
+        user_nav[chat_id].pop()  # remove current
+    else:
+        user_nav[chat_id] = [SCR_MAIN]
 
-def product_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(BTN_CHOOSE_VOLUME)
-    markup.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
-    markup.row(BTN_BACK_PRODUCT)
-    return markup
+def nav_current(chat_id: int) -> str:
+    nav_init(chat_id)
+    if not user_nav[chat_id]:
+        user_nav[chat_id] = [SCR_MAIN]
+    return user_nav[chat_id][-1]
 
+def show_screen(chat_id: int, screen: str):
+    # Central place: what to show for each screen
+    if screen == SCR_MAIN:
+        bot.send_message(chat_id, "Вітаємо 💛\nОберіть розділ нижче:", reply_markup=kb_main())
 
-# ===== Start =====
+    elif screen == SCR_SALON:
+        bot.send_message(chat_id, "Розділ: Салон ✂️\nОберіть, що потрібно:", reply_markup=kb_salon())
+
+    elif screen == SCR_PRICE:
+        bot.send_message(chat_id, "Прайс салону 💰\nОберіть послугу:", reply_markup=kb_price())
+
+    elif screen == SCR_SHOP:
+        bot.send_message(chat_id, "Магазин косметики 🛍️\nОберіть бренд:", reply_markup=kb_shop())
+
+    elif screen == SCR_REDKEN:
+        bot.send_message(chat_id, "Redken 🧴\nОберіть лінійку:", reply_markup=kb_redken())
+
+    elif screen == SCR_PRODUCT_ACIDIC:
+        p = PRODUCTS["acidic_shampoo"]
+        caption = f'{p["title"]} 300 мл\n\n{p["short"]}'
+        bot.send_photo(chat_id, p["photo"], caption=caption, reply_markup=kb_product())
+
+    elif screen == SCR_VOL_ACIDIC:
+        bot.send_message(chat_id, "Оберіть обʼєм:", reply_markup=kb_volumes())
+
+    elif screen == SCR_CART:
+        bot.send_message(chat_id, "Кошик 🧺\nОберіть дію:", reply_markup=kb_cart())
+
+    else:
+        # fallback
+        bot.send_message(chat_id, "Оберіть кнопку в меню нижче ✅", reply_markup=kb_main())
+
+# =========================
+# COMMANDS
+# =========================
 @bot.message_handler(commands=["start"])
-def start_message(message):
-    bot.send_message(
-        message.chat.id,
-        "Вітаємо 💛\nОберіть розділ нижче:",
-        reply_markup=main_menu(),
-    )
+def cmd_start(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
+    user_nav[chat_id] = [SCR_MAIN]
+    user_selected[chat_id] = {}
+    show_screen(chat_id, SCR_MAIN)
 
+# =========================
+# GLOBAL NAV BUTTONS
+# =========================
+@bot.message_handler(func=lambda m: m.text == BTN_HOME)
+def handle_home(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
+    user_nav[chat_id] = [SCR_MAIN]
+    show_screen(chat_id, SCR_MAIN)
 
-# ===== Главное меню =====
+@bot.message_handler(func=lambda m: m.text == BTN_BACK)
+def handle_back(message):
+    chat_id = message.chat.id
+    nav_back(chat_id)
+    show_screen(chat_id, nav_current(chat_id))
+
+# =========================
+# MAIN MENU
+# =========================
 @bot.message_handler(func=lambda m: m.text == BTN_SALON)
 def open_salon(message):
-    bot.send_message(
-        message.chat.id,
-        "Розділ: Салон ✂️\nОберіть, що потрібно:",
-        reply_markup=salon_menu(),
-    )
-
+    chat_id = message.chat.id
+    nav_go(chat_id, SCR_SALON)
+    show_screen(chat_id, SCR_SALON)
 
 @bot.message_handler(func=lambda m: m.text == BTN_SHOP)
 def open_shop(message):
-    bot.send_message(
-        message.chat.id,
-        "Магазин косметики 🛍️\nОберіть бренд:",
-        reply_markup=shop_menu(),
-    )
-
-
-@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
-def open_price(message):
-    bot.send_message(
-        message.chat.id,
-        "Прайс салону 💰\nОберіть послугу:",
-        reply_markup=price_menu(),
-    )
-
-
-@bot.message_handler(func=lambda m: m.text in SERVICE_TEXTS)
-def show_service(message):
-    bot.send_message(
-        message.chat.id,
-        SERVICE_TEXTS[message.text],
-        reply_markup=price_menu(),
-    )
-
+    chat_id = message.chat.id
+    nav_go(chat_id, SCR_SHOP)
+    show_screen(chat_id, SCR_SHOP)
 
 @bot.message_handler(func=lambda m: m.text == BTN_ADMIN)
 def contact_admin(message):
-    bot.send_message(
-        message.chat.id,
-        "Напишіть адміністратору 👇\n" + ADMIN_LINK,
-        reply_markup=main_menu(),
-    )
+    chat_id = message.chat.id
+    bot.send_message(chat_id, f"Напишіть адміністратору 👇\n{ADMIN_LINK}", reply_markup=kb_main())
 
+@bot.message_handler(func=lambda m: m.text == BTN_CART)
+def open_cart(message):
+    chat_id = message.chat.id
+    nav_go(chat_id, SCR_CART)
+    show_screen(chat_id, SCR_CART)
 
-@bot.message_handler(func=lambda m: m.text == BTN_BACK)
-def go_back(message):
-    bot.send_message(
-        message.chat.id,
-        "Головне меню ✅",
-        reply_markup=main_menu(),
-    )
+# =========================
+# SALON
+# =========================
+@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
+def open_price(message):
+    chat_id = message.chat.id
+    nav_go(chat_id, SCR_PRICE)
+    show_screen(chat_id, SCR_PRICE)
 
+@bot.message_handler(func=lambda m: m.text in SERVICE_TEXTS)
+def show_service(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, SERVICE_TEXTS[message.text], reply_markup=kb_price())
 
-# ===== Redken =====
+# =========================
+# SHOP
+# =========================
 @bot.message_handler(func=lambda m: m.text == BTN_REDKEN)
 def open_redken(message):
-    bot.send_message(
-        message.chat.id,
-        "Redken 🧴\nОберіть лінійку:",
-        reply_markup=redken_menu(),
-    )
+    chat_id = message.chat.id
+    nav_go(chat_id, SCR_REDKEN)
+    show_screen(chat_id, SCR_REDKEN)
 
+@bot.message_handler(func=lambda m: m.text == BTN_EG)
+def open_eg(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "EG by Gromova (додамо товари пізніше) 💛", reply_markup=kb_shop())
 
+# =========================
+# REDKEN LINES
+# =========================
 @bot.message_handler(func=lambda m: m.text == RD_ACIDIC)
-def show_acidic(message):
-    bot.send_photo(
-        message.chat.id,
-        ACIDIC_PHOTO_URL,
-        caption=ACIDIC_CAPTION,
-        reply_markup=product_menu(),
-    )
+def show_acidic_product(message):
+    chat_id = message.chat.id
+    # remember selected product
+    nav_init(chat_id)
+    user_selected[chat_id]["product_key"] = "acidic_shampoo"
+    user_selected[chat_id].pop("volume_btn", None)  # reset volume
+    nav_go(chat_id, SCR_PRODUCT_ACIDIC)
+    show_screen(chat_id, SCR_PRODUCT_ACIDIC)
 
+# placeholders for other lines (so user doesn't get stuck)
+@bot.message_handler(func=lambda m: m.text in {RD_ALLSOFT, RD_MEGA_CURL, RD_BLONDAGE, RD_EXTREME, RD_FRIZZ, RD_VOLUME})
+def other_redken_lines(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "Цю лінійку додамо наступною ✅", reply_markup=kb_redken())
 
+# =========================
+# PRODUCT ACTIONS
+# =========================
 @bot.message_handler(func=lambda m: m.text == BTN_CHOOSE_VOLUME)
 def choose_volume(message):
+    chat_id = message.chat.id
+    # only from product screen makes sense, but we allow anyway
+    nav_go(chat_id, SCR_VOL_ACIDIC)
+    show_screen(chat_id, SCR_VOL_ACIDIC)
+
+@bot.message_handler(func=lambda m: m.text in {BTN_VOL_300, BTN_VOL_500})
+def select_volume(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
+    product_key = user_selected[chat_id].get("product_key")
+    if not product_key:
+        # no product chosen -> return to main
+        user_nav[chat_id] = [SCR_MAIN]
+        show_screen(chat_id, SCR_MAIN)
+        return
+
+    p = PRODUCTS[product_key]
+    if message.text not in p["volumes"]:
+        bot.send_message(chat_id, "Оберіть обʼєм з кнопок нижче ✅", reply_markup=kb_volumes())
+        return
+
+    user_selected[chat_id]["volume_btn"] = message.text
+    info = p["volumes"][message.text]
     bot.send_message(
-        message.chat.id,
-        "Оберіть обʼєм:",
-        reply_markup=acidic_volume_menu(),
+        chat_id,
+        f"Ви обрали {info['ml']} мл — {info['price']} грн\n\nТепер натисніть «Додати в кошик».",
+        reply_markup=kb_product()
     )
-
-
-@bot.message_handler(func=lambda m: m.text == BTN_VOL_300)
-def select_300(message):
-    bot.send_message(
-        message.chat.id,
-        "Ви обрали 300 мл — 950 грн\n\nНатисніть «Додати в кошик».",
-        reply_markup=product_menu(),
-    )
-
-
-@bot.message_handler(func=lambda m: m.text == BTN_VOL_500)
-def select_500(message):
-    bot.send_message(
-        message.chat.id,
-        "Ви обрали 500 мл — 1250 грн\n\nНатисніть «Додати в кошик».",
-
-        reply_markup=product_menu(),
-    )
-
-
-# ✅ Назад до товару — делаем не строгое сравнение, чтобы работало и с ⬅ и с ⬅️
-@bot.message_handler(func=lambda m: m.text and "Назад до товару" in m.text)
-def back_to_product(message):
-    bot.send_photo(
-        message.chat.id,
-        ACIDIC_PHOTO_URL,
-        caption=ACIDIC_CAPTION,
-        reply_markup=product_menu(),
-    )
-
-
-# ===== Заглушки, чтобы кнопки не были "мертвыми" =====
-@bot.message_handler(func=lambda m: m.text == BTN_ADD_TO_CART)
-def add_to_cart(message):
-    bot.send_message(
-        message.chat.id,
-        "Кошик ще в розробці 🛒\nЯ додам це в наступному кроці.",
-        reply_markup=product_menu(),
-    )
-
+    # after choosing volume we go back to product screen logically
+    # (so "Назад" from product returns to Redken)
+    # remove the volume screen from stack if it is current
+    if nav_current(chat_id) == SCR_VOL_ACIDIC:
+        nav_back(chat_id)
 
 @bot.message_handler(func=lambda m: m.text == BTN_HOW_TO_USE)
 def how_to_use(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
+    product_key = user_selected[chat_id].get("product_key")
+    if not product_key:
+        bot.send_message(chat_id, "Спочатку оберіть товар ✅", reply_markup=kb_main())
+        return
+    p = PRODUCTS[product_key]
+    bot.send_message(chat_id, p["how_to_use"], reply_markup=kb_product())
+
+@bot.message_handler(func=lambda m: m.text == BTN_ADD_TO_CART)
+def add_to_cart(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
+
+    product_key = user_selected[chat_id].get("product_key")
+    volume_btn = user_selected[chat_id].get("volume_btn")
+
+    if not product_key:
+        bot.send_message(chat_id, "Спочатку оберіть товар ✅", reply_markup=kb_main())
+        return
+
+    if not volume_btn:
+        bot.send_message(chat_id, "Спочатку натисніть «Вибрати обʼєм» ✅", reply_markup=kb_product())
+        return
+
+    p = PRODUCTS[product_key]
+    info = p["volumes"][volume_btn]
+    item = {
+        "title": p["title"],
+        "ml": info["ml"],
+        "price": info["price"]
+    }
+    user_cart[chat_id].append(item)
+
     bot.send_message(
-        message.chat.id,
-        "Як використовувати:\n"
-        "1) Намочіть волосся.\n"
-        "2) Нанесіть шампунь на шкіру голови.\n"
-        "3) Спіньте 1–2 хвилини.\n"
-        "4) Змийте.\n"
-        "5) Повторіть за потреби.\n\n"
-        "Після — бальзам або маска.",
-        reply_markup=product_menu(),
+        chat_id,
+        f"Додано в кошик ✅\n{item['title']} — {item['ml']} мл — {item['price']} грн\n\n"
+        f"Можна додати ще або відкрити кошик: «{BTN_CART}».",
+        reply_markup=kb_product()
     )
 
+# =========================
+# CART
+# =========================
+@bot.message_handler(func=lambda m: m.text == BTN_CART_SHOW)
+def cart_show(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
 
-# ===== Фолбек на неизвестные сообщения (чтобы бот не молчал) =====
+    items = user_cart[chat_id]
+    if not items:
+        bot.send_message(chat_id, "Кошик порожній 🫶", reply_markup=kb_cart())
+        return
+
+    total = sum(i["price"] for i in items)
+    lines = []
+    for idx, i in enumerate(items, 1):
+        lines.append(f"{idx}) {i['title']} — {i['ml']} мл — {i['price']} грн")
+
+    text = "Ваш кошик 🧺\n\n" + "\n".join(lines) + f"\n\nРазом: {total} грн"
+    bot.send_message(chat_id, text, reply_markup=kb_cart())
+
+@bot.message_handler(func=lambda m: m.text == BTN_CART_CLEAR)
+def cart_clear(message):
+    chat_id = message.chat.id
+    nav_init(chat_id)
+    user_cart[chat_id] = []
+    bot.send_message(chat_id, "Кошик очищено ✅", reply_markup=kb_cart())
+
+# =========================
+# FALLBACK (unknown text)
+# IMPORTANT: must be LAST handler
+# =========================
 @bot.message_handler(func=lambda m: True)
 def unknown(message):
-    bot.send_message(
-        message.chat.id,
-        "Я вас зрозуміла ✅\nОберіть кнопку в меню нижче.",
-        reply_markup=main_menu(),
-    )
+    chat_id = message.chat.id
+    bot.send_message(chat_id, "Я вас зрозуміла ✅\nОберіть кнопку в меню нижче.", reply_markup=kb_main())
 
-
-# ===== Запуск =====
+# =========================
+# RUN
+# =========================
+# Important for Render + polling:
+# - remove webhook just in case
+# - skip_pending=True helps avoid old queued updates
 bot.remove_webhook()
-bot.infinity_polling()
+bot.infinity_polling(skip_pending=True)
