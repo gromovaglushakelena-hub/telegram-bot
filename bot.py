@@ -251,7 +251,7 @@ def open_redken(message):
         "Redken 🧴\nОберіть лінійку:",
         reply_markup=redken_menu()
 
-        @bot.message_handler(func=lambda m: m.text == RD_ACIDIC)
+@bot.message_handler(func=lambda m: m.text == RD_ACIDIC)
 def show_acidic(message):
     bot.send_photo(
         message.chat.id,
