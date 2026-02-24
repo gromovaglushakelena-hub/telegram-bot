@@ -12,6 +12,14 @@ BTN_ADMIN = "Зв'язатися з адміністратором"
 BTN_BACK = "⬅️ Назад"
 BTN_REDKEN = "Redken"
 BTN_EG = "EG by Gromova"
+# ===== Лінійки Redken =====
+RD_ACIDIC = "Acidic Bonding"
+RD_ALLSOFT = "All Soft"
+RD_MEGA_CURL = "All Soft Mega Curls"
+RD_BLONDAGE = "Blondage"
+RD_EXTREME = "Extreme"
+RD_FRIZZ = "Frizz Dismiss"
+RD_VOLUME = "Volume Injection"
 BTN_PRICE = "Прайс салону"
 
 SVC_CAMO = "Камуфляж сивини"
@@ -181,6 +189,15 @@ def shop_menu():
     markup.row(BTN_REDKEN, BTN_EG)
     markup.row(BTN_BACK)
     return markup
+
+def redken_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(RD_ACIDIC, RD_ALLSOFT)
+    markup.row(RD_MEGA_CURL, RD_BLONDAGE)
+    markup.row(RD_EXTREME, RD_FRIZZ)
+    markup.row(RD_VOLUME)
+    markup.row(BTN_BACK)
+    return markup
     
 # ===== Start =====
 @bot.message_handler(commands=['start'])
@@ -226,5 +243,13 @@ def go_back(message):
     bot.send_message(message.chat.id,
                      "Головне меню ✅",
                      reply_markup=main_menu())
-
+    
+@bot.message_handler(func=lambda m: m.text == BTN_REDKEN)
+def open_redken(message):
+    bot.send_message(
+        message.chat.id,
+        "Redken 🧴\nОберіть лінійку:",
+        reply_markup=redken_menu()
+        
+    )
 bot.infinity_polling()
