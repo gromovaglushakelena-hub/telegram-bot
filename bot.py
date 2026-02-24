@@ -130,9 +130,7 @@ ACIDIC_CAPTION = "Redken Acidic Bonding Shampoo 300 мл\n\nВідновлююч
 
 # ===== Клавиатуры =====
 def main_menu():
-    markup = types.
-
-ReplyKeyboardMarkup(resize_keyboard=True)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row(BTN_SALON, BTN_SHOP)
     markup.row(BTN_ADMIN)
     return markup
@@ -349,4 +347,5 @@ def unknown(message):
 
 
 # ===== Запуск =====
+bot.remove_webhook()
 bot.infinity_polling()
