@@ -242,9 +242,9 @@ def open_shop(message):
     bot.send_message(
         message.chat.id,
         "Магазин косметики 🛍️\nОберіть бренд:",
-        reply_markup=shop_menu()
+        reply_markup=shop_menu())
         
-    @bot.message_handler(func=lambda m: m.text == BTN_PRICE)
+@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
 def open_price(message):
     bot.send_message(message.chat.id,
                      "Прайс салону 💰\nОберіть послугу:",
@@ -282,14 +282,14 @@ def show_acidic(message):
         "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg",
         caption="Redken Acidic Bonding Shampoo 300 ml\n\nВідновлюючий шампунь для пошкодженого волосся."
     )    
-    @bot.message_handler(func=lambda m: m.text == BTN_CHOOSE_VOLUME)
+@bot.message_handler(func=lambda m: m.text == BTN_CHOOSE_VOLUME)
 def choose_volume(message):
     bot.send_message(
         message.chat.id,
         "Оберіть обʼєм:",
         reply_markup=acidic_volume_menu()
     )
-    @bot.message_handler(func=lambda m: m.text == BTN_VOL_300)
+@bot.message_handler(func=lambda m: m.text == BTN_VOL_300)
 def select_300(message):
     bot.send_message(
         message.chat.id,
@@ -305,4 +305,5 @@ def select_500(message):
         "Ви обрали 500 мл — 1250 грн\n\nНатисніть 'Додати в кошик'",
         reply_markup=product_menu()
     )
-    bot.infinity_polling()
+
+bot.infinity_polling()
