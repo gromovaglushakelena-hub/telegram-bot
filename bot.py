@@ -473,6 +473,122 @@ def cart_clear(message):
     bot.send_message(chat_id, "Кошик очищено ✅", reply_markup=kb_cart())
 
 # =========================
+# CHECKOUT → SEND TO GROUP
+# =========================
+
+# 👉 ВСТАВЬ СЮДА ID ГРУППЫ (начинается с -100...)
+ADMIN_CHAT_ID = -1000000000000  # ← ПОКА ВРЕМЕННО, потом заменишь
+
+
+# Храним данные заказа клиента
+user_checkout = {}
+user_checkout_step = {}
+
+
+CHECKOUT_FIELDS = [
+    ("first_name", "Вкажіть ваше ім’я 👇"),
+    ("last_name", "Вкажіть ваше прізвище 👇"),
+    ("phone", "Вкажіть номер телефону 📞\nПриклад: +380XXXXXXXXX"),
+    ("city", "Вкажіть місто 🏙️"),
+    ("np_type", "Доставка Новою Поштою:\nНапишіть: Відділення або Поштомат 📦"),
+    ("np_number", "Вкажіть номер відділення або поштомату 👇"),
+]
+
+
+def kb_cart():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(BTN_CART_SHOW, BTN_CART_CLEAR)
+    kb.row("✅ Оформити замовлення")
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
+
+@bot.message_handler(func=lambda m: m.text == "✅ Оформити замовлення")
+def start_checkout(message):
+    chat_id = message.chat.id
+
+    items = user_cart.get(chat_id, [])
+    if not items:
+        bot.send_message(chat_id, "Кошик порожній 🧺", reply_markup=kb_cart())
+        return
+
+    user_checkout[chat_id] = {}
+    user_checkout_step[chat_id] = 0
+
+    bot.send_message(chat_id, "Оформлюємо замовлення 📝\nВідповідайте по черзі.", reply_markup=types.ReplyKeyboardRemove())
+    ask_next_field(chat_id)
+
+
+def ask_next_field(chat_id):
+    step = user_checkout_step[chat_id]
+
+    if step >= len(CHECKOUT_FIELDS):
+        send_order_to_group(chat_id)
+        return
+
+    key, question = CHECKOUT_FIELDS[step]
+    bot.send_message(chat_id, question)
+
+
+@bot.message_handler(func=lambda m: m.chat.id in user_checkout_step)
+def collect_checkout_data(message):
+    chat_id = message.chat.id
+
+    step = user_checkout_step.get(chat_id)
+    if step is None:
+        return
+
+    key, _ = CHECKOUT_FIELDS[step]
+    value = (message.text or "").strip()
+
+    # Проверка телефона
+    if key == "phone":
+        cleaned = value.replace(" ", "").replace("-", "")
+        if not (cleaned.startswith("+") and len(cleaned) >= 10):
+            bot.send_message(chat_id, "Номер введено некоректно ❌\nПриклад: +380XXXXXXXXX")
+            return
+
+    user_checkout[chat_id][key] = value
+    user_checkout_step[chat_id] += 1
+
+    ask_next_field(chat_id)
+
+
+def send_order_to_group(chat_id):
+    items = user_cart.get(chat_id, [])
+    data = user_checkout.get(chat_id, {})
+
+    total = sum(i["price"] for i in items)
+
+    lines = []
+    for idx, i in enumerate(items, 1):
+        lines.append(f"{idx}) {i['title']} — {i['ml']} мл — {i['price']} грн")
+
+    items_text = "\n".join(lines)
+
+    text = (
+        "🔥 НОВЕ ЗАМОВЛЕННЯ\n\n"
+        f"👤 {data['first_name']} {data['last_name']}\n"
+        f"📞 {data['phone']}\n"
+        f"🏙️ {data['city']}\n"
+        f"📦 НП: {data['np_type']} №{data['np_number']}\n\n"
+        f"🧴 Товари:\n{items_text}\n\n"
+        f"💰 Разом: {total} грн\n\n"
+        f"🆔 Telegram клієнта: {chat_id}"
+    )
+
+    try:
+        bot.send_message(ADMIN_CHAT_ID, text)
+        bot.send_message(chat_id, "Дякуємо ❤️ Замовлення відправлено адміністратору.", reply_markup=kb_main())
+    except:
+        bot.send_message(chat_id, "Помилка відправки адміністратору ❌")
+
+    # Очистка
+    user_cart[chat_id] = []
+    user_checkout.pop(chat_id, None)
+    user_checkout_step.pop(chat_id, None)
+
+# =========================
 # FALLBACK (unknown text)
 # IMPORTANT: must be LAST handler
 # =========================
