@@ -210,6 +210,15 @@ def select_500(message):
     bot.send_message(message.chat.id,
                      "Ви обрали 500 мл — 1250 грн\n\nНатисніть «Додати в кошик».",
                      reply_markup=product_menu())
-
+    
+@bot.message_handler(func=lambda m: m.text == BTN_BACK_PRODUCT)
+def back_to_product(message):
+    bot.send_photo(
+        message.chat.id,
+        "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg",
+        caption="Redken Acidic Bonding Shampoo 300 мл\n\nВідновлюючий шампунь для пошкодженого волосся.",
+        reply_markup=product_menu()
+        )
+    
 # ===== Запуск =====
 bot.infinity_polling()
