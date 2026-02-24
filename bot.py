@@ -250,6 +250,13 @@ def open_redken(message):
         message.chat.id,
         "Redken 🧴\nОберіть лінійку:",
         reply_markup=redken_menu()
-        
+
+        @bot.message_handler(func=lambda m: m.text == RD_ACIDIC)
+def show_acidic(message):
+    bot.send_photo(
+        message.chat.id,
+        "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg",
+        caption="Redken Acidic Bonding Shampoo 300 ml\n\nВідновлюючий шампунь для пошкодженого волосся."
+    )        
     )
 bot.infinity_polling()
