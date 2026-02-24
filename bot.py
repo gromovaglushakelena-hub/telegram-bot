@@ -244,7 +244,7 @@ def open_shop(message):
         "Магазин косметики 🛍️\nОберіть бренд:",
         reply_markup=shop_menu()
         
-    )@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
+    @bot.message_handler(func=lambda m: m.text == BTN_PRICE)
 def open_price(message):
     bot.send_message(message.chat.id,
                      "Прайс салону 💰\nОберіть послугу:",
