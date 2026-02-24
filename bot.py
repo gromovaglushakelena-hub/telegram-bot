@@ -187,57 +187,129 @@ CATALOG = {
     "Redken": {
         "lines": {
             "Acidic Bonding": {
-                "items": {
-                    "acidic_shampoo": {
-                        "title": "Redken Acidic Bonding Concentrate Shampoo",
-                        "photo": "",  # вставишь ссылку на фото
-                        "short": "Шампунь для зміцнення пошкодженого волосся. М’яко очищає, допомагає зменшити ламкість та сухість.",
-                        "how_to_use": "Нанесіть на вологе волосся, спіньте 1–2 хвилини, змийте. Далі використайте бальзам або маску.",
-                        "volumes": {
-                            BTN_VOL_300: {"ml": 300, "price": 950},
-                            BTN_VOL_500: {"ml": 500, "price": 1250},
-                        }
-                    },
-                    "acidic_conditioner": {
-                        "title": "Redken Acidic Bonding Concentrate Conditioner",
-                        "photo": "",
-                        "short": "Бальзам для м’якості та захисту довжини. Розгладжує, полегшує розчісування, додає блиску.",
-                        "how_to_use": "Нанесіть на довжину після шампуню, витримайте 1–3 хвилини, змийте.",
-                        "volumes": {
-                            "300 мл — 950 грн": {"ml": 300, "price": 950},
-                            "500 мл — 1250 грн": {"ml": 500, "price": 1250},
-                        }
-                    },
-                    "acidic_mask": {
-                        "title": "Redken Acidic Bonding Concentrate Intensive Treatment Mask",
-                        "photo": "",
-                        "short": "Інтенсивна маска для відновлення. Підходить волоссю після освітлення та фарбування.",
-                        "how_to_use": "Нанесіть на довжину після шампуню, витримайте 5–10 хвилин, змийте. 1–2 рази на тиждень.",
-                        "volumes": {
-                            BTN_MASK_250: {"ml": 250, "price": 1300},
-                        }
-                    },
-                    "acidic_leavein": {
-                        "title": "Redken Acidic Bonding Concentrate Leave-In Treatment",
-                        "photo": "",
-                        "short": "Незмивний крем-захист. Зменшує пухнастість, захищає довжину, допомагає зберігати гладкість.",
-                        "how_to_use": "Нанесіть невелику кількість на вологу або суху довжину. Не змивайте.",
-                        "volumes": {
-                            BTN_LEAVEIN_150: {"ml": 150, "price": 1000},
-                        }
-                    },
-                }
-            },
-
-            # Заготовки под остальные линейки (цены/товары поменяешь)
-            "All Soft": {"items": {}},
-            "All Soft Mega Curls": {"items": {}},
-            "Blondage": {"items": {}},
-            "Extreme": {"items": {}},
-            "Frizz Dismiss": {"items": {}},
-            "Volume Injection": {"items": {}},
+    "items": {
+        "acidic_shampoo": {
+            "title": "Redken Acidic Bonding Shampoo",
+            "photo": "URL_ФОТО_ШАМПУНЬ_ABC",
+            "short": "Відновлюючий шампунь для пошкодженого та освітленого волосся. Зменшує ламкість, ущільнює структуру.",
+            "how_to_use": "Нанесіть на вологе волосся, спіньте, змийте. Використовуйте разом із кондиціонером.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950},
+                "500 мл — 1250 грн": {"ml": 500, "price": 1250}
+            }
+        },
+        "acidic_conditioner": {
+            "title": "Redken Acidic Bonding Conditioner",
+            "photo": "URL_ФОТО_БАЛЬЗАМ_ABC",
+            "short": "Кондиціонер для зміцнення довжини. Розгладжує та додає блиску.",
+            "how_to_use": "Нанесіть після шампуню на довжину, витримайте 1–3 хв, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950},
+                "500 мл — 1250 грн": {"ml": 500, "price": 1250}
+            }
+        },
+        "acidic_mask": {
+            "title": "Redken Acidic Bonding Mask",
+            "photo": "URL_ФОТО_МАСКА_ABC",
+            "short": "Інтенсивна маска для глибокого відновлення волосся.",
+            "how_to_use": "Нанесіть після шампуню на 5–10 хвилин. 1–2 рази на тиждень.",
+            "volumes": {
+                "250 мл — 1300 грн": {"ml": 250, "price": 1300}
+            }
+        },
+        "acidic_leavein": {
+            "title": "Redken Acidic Bonding Leave-In",
+            "photo": "URL_ФОТО_КРЕМ_ABC",
+            "short": "Незмивний крем-захист. Зменшує пухнастість та ламкість.",
+            "how_to_use": "Нанесіть на вологу довжину, не змивайте.",
+            "volumes": {
+                "150 мл — 1000 грн": {"ml": 150, "price": 1000}
+            }
         }
-    },
+    }
+},
+
+"All Soft": {
+    "items": {
+        "allsoft_shampoo": {
+            "title": "Redken All Soft Shampoo",
+            "photo": "URL_ФОТО_ALLSOFT_SH",
+            "short": "Живильний шампунь для сухого волосся.",
+            "how_to_use": "Нанесіть на вологе волосся, спіньте, змийте.",
+            "volumes": {
+                "300 мл — 850 грн": {"ml": 300, "price": 850}
+            }
+        },
+        "allsoft_conditioner": {
+            "title": "Redken All Soft Conditioner",
+            "photo": "URL_ФОТО_ALLSOFT_COND",
+            "short": "Кондиціонер для м’якості та гладкості.",
+            "how_to_use": "Нанесіть на довжину після шампуню, змийте.",
+            "volumes": {
+                "300 мл — 850 грн": {"ml": 300, "price": 850}
+            }
+        },
+        "allsoft_cream": {
+            "title": "Redken All Soft Leave-In Cream",
+            "photo": "URL_ФОТО_ALLSOFT_CREAM",
+            "short": "Незмивний крем для м’якості та захисту.",
+            "how_to_use": "Нанесіть на вологу довжину, не змивайте.",
+            "volumes": {
+                "150 мл — 950 грн": {"ml": 150, "price": 950}
+            }
+        },
+        "allsoft_oil": {
+            "title": "Redken All Soft Oil",
+            "photo": "URL_ФОТО_ALLSOFT_OIL",
+            "short": "Флюїд-олійка для блиску та гладкості.",
+            "how_to_use": "Нанесіть 1–2 краплі на суху або вологу довжину.",
+            "volumes": {
+                "111 мл — 1000 грн": {"ml": 111, "price": 1000}
+            }
+        }
+    }
+},
+
+"Acidic Color Gloss": {
+    "items": {
+        "color_shampoo": {
+            "title": "Redken Acidic Color Gloss Shampoo",
+            "photo": "URL_ФОТО_COLOR_SH",
+            "short": "Шампунь для збереження яскравості кольору.",
+            "how_to_use": "Нанесіть на вологе волосся, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "color_conditioner": {
+            "title": "Redken Acidic Color Gloss Conditioner",
+            "photo": "URL_ФОТО_COLOR_COND",
+            "short": "Кондиціонер для блиску та захисту кольору.",
+            "how_to_use": "Нанесіть на довжину після шампуню.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "color_fluid": {
+            "title": "Redken Acidic Color Gloss Fluid",
+            "photo": "URL_ФОТО_COLOR_FLUID",
+            "short": "Незмивний флюїд для сяйва кольору.",
+            "how_to_use": "Нанесіть на довжину, не змивайте.",
+            "volumes": {
+                "100 мл — 1000 грн": {"ml": 100, "price": 1000}
+            }
+        },
+        "color_treatment": {
+            "title": "Redken Acidic Color Gloss Treatment",
+            "photo": "URL_ФОТО_COLOR_TREAT",
+            "short": "Інтенсивний догляд для продовження стійкості кольору.",
+            "how_to_use": "Нанесіть після шампуню на 5 хв.",
+            "volumes": {
+                "237 мл — 1400 грн": {"ml": 237, "price": 1400}
+            }
+        }
+    }
+}
 
     "EG by Gromova": {
         "lines": {
