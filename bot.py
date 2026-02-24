@@ -1,20 +1,31 @@
 import os
+import logging
 import telebot
 from telebot import types
 
 # =========================
 # CONFIG
 # =========================
-TOKEN = os.environ.get("TOKEN")
+TOKEN = (os.environ.get("TOKEN") or "").strip()
+ADMIN_CHAT_ID = (os.environ.get("ADMIN_CHAT_ID") or "").strip()  # пример: -5268865051
+
 if not TOKEN:
     raise RuntimeError("TOKEN env var is not set")
 
-bot = telebot.TeleBot(TOKEN, parse_mode=None)
+if not ADMIN_CHAT_ID:
+    raise RuntimeError("ADMIN_CHAT_ID env var is not set (example: -5268865051)")
+
+ADMIN_CHAT_ID = int(ADMIN_CHAT_ID)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("eg-bot")
+
+bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
 ADMIN_LINK = "https://t.me/beautyspace_admin"
 
 # =========================
-# BUTTONS (UA UI)
+# UI BUTTONS (UA)
 # =========================
 BTN_HOME = "🏠 Головне меню"
 BTN_BACK = "⬅️ Назад"
@@ -27,31 +38,94 @@ BTN_PRICE = "Прайс салону"
 BTN_REDKEN = "Redken"
 BTN_EG = "EG by Gromova"
 
-# Redken lines
-RD_ACIDIC = "Acidic Bonding"
-RD_ALLSOFT = "All Soft"
-RD_MEGA_CURL = "All Soft Mega Curls"
-RD_BLONDAGE = "Blondage"
-RD_EXTREME = "Extreme"
-RD_FRIZZ = "Frizz Dismiss"
-RD_VOLUME = "Volume Injection"
+BTN_CART = "🧺 Кошик"
+BTN_CART_SHOW = "Показати кошик"
+BTN_CART_CLEAR = "Очистити кошик"
+BTN_CHECKOUT = "✅ Оформити замовлення"
 
-# Product buttons
 BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
 BTN_ADD_TO_CART = "Додати в кошик"
 BTN_HOW_TO_USE = "Як правильно використовувати"
-BTN_CART = "🧺 Кошик"
 
-# Acidic volumes
 BTN_VOL_300 = "300 мл — 950 грн"
 BTN_VOL_500 = "500 мл — 1250 грн"
-
-# Cart actions
-BTN_CART_SHOW = "Показати кошик"
-BTN_CART_CLEAR = "Очистити кошик"
+BTN_MASK_250 = "250 мл — 1300 грн"
+BTN_LEAVEIN_150 = "150 мл — 1000 грн"
 
 # =========================
-# SERVICES (can keep your texts)
+# HELPERS
+# =========================
+def is_private(message: types.Message) -> bool:
+    return message.chat.type == "private"
+
+def safe_send_to_admin(text: str) -> bool:
+    try:
+        bot.send_message(ADMIN_CHAT_ID, text, reply_markup=types.ReplyKeyboardRemove(), disable_web_page_preview=True)
+        return True
+    except Exception as e:
+        log.exception("Failed to send to admin chat: %s", e)
+        return False
+
+# =========================
+# KEYBOARDS
+# =========================
+def kb_main():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_SALON, BTN_SHOP)
+    m.row(BTN_CART)
+    m.row(BTN_ADMIN)
+    return m
+
+def kb_salon():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_PRICE)
+    m.row(BTN_ADMIN)
+    m.row(BTN_HOME)
+    return m
+
+def kb_price(services):
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for row in services:
+        m.row(*row)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
+
+def kb_shop():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_REDKEN, BTN_EG)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
+
+def kb_lines(lines):
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for row in lines:
+        m.row(*row)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
+
+def kb_product():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_CHOOSE_VOLUME)
+    m.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
+
+def kb_volumes(volume_buttons):
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    for row in volume_buttons:
+        m.row(*row)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
+
+def kb_cart():
+    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    m.row(BTN_CART_SHOW, BTN_CART_CLEAR)
+    m.row(BTN_CHECKOUT)
+    m.row(BTN_BACK, BTN_HOME)
+    return m
+
+# =========================
+# SALON SERVICES (твои тексты)
 # =========================
 SVC_CAMO = "Камуфляж сивини"
 SVC_TONE = "Тонування"
@@ -100,118 +174,124 @@ SERVICE_TEXTS = {
                "8D by Gromova — авторська система глибокого відновлення волосся."
 }
 
+PRICE_ROWS = [
+    (SVC_CAMO, SVC_INTEGR),
+    (SVC_TONE, SVC_COLOR),
+    (SVC_HIGHL, SVC_AIRTOUCH),
+    (SVC_DARK_OUT, SVC_CUT),
+    (SVC_RECON,),
+]
+
 # =========================
-# PRODUCTS (template)
+# CATALOG (товары + цены + описания)
 # =========================
-PRODUCTS = {
-    "acidic_shampoo": {
-        "title": "Redken Acidic Bonding Shampoo",
-        "photo": "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg",
-        "short": "Відновлюючий шампунь для пошкодженого волосся.",
-        "how_to_use": (
-            "Як використовувати:\n"
-            "1) Намочіть волосся.\n"
-            "2) Нанесіть шампунь на шкіру голови.\n"
-            "3) Спіньте 1–2 хвилини.\n"
-            "4) Змийте.\n"
-            "5) Повторіть за потреби.\n\n"
-            "Після — бальзам або маска."
-        ),
-        "volumes": {
-            BTN_VOL_300: {"ml": 300, "price": 950},
-            BTN_VOL_500: {"ml": 500, "price": 1250},
+# Твоя задача потом: вставить "photo" и поменять price.
+# Фото пока можешь оставлять пустым "".
+
+CATALOG = {
+    "Redken": {
+        "lines": {
+            "Acidic Bonding": {
+                "items": {
+                    "acidic_shampoo": {
+                        "title": "Redken Acidic Bonding Concentrate Shampoo",
+                        "photo": "",  # вставишь ссылку на фото
+                        "short": "Шампунь для зміцнення пошкодженого волосся. М’яко очищає, допомагає зменшити ламкість та сухість.",
+                        "how_to_use": "Нанесіть на вологе волосся, спіньте 1–2 хвилини, змийте. Далі використайте бальзам або маску.",
+                        "volumes": {
+                            BTN_VOL_300: {"ml": 300, "price": 950},
+                            BTN_VOL_500: {"ml": 500, "price": 1250},
+                        }
+                    },
+                    "acidic_conditioner": {
+                        "title": "Redken Acidic Bonding Concentrate Conditioner",
+                        "photo": "",
+                        "short": "Бальзам для м’якості та захисту довжини. Розгладжує, полегшує розчісування, додає блиску.",
+                        "how_to_use": "Нанесіть на довжину після шампуню, витримайте 1–3 хвилини, змийте.",
+                        "volumes": {
+                            "300 мл — 950 грн": {"ml": 300, "price": 950},
+                            "500 мл — 1250 грн": {"ml": 500, "price": 1250},
+                        }
+                    },
+                    "acidic_mask": {
+                        "title": "Redken Acidic Bonding Concentrate Intensive Treatment Mask",
+                        "photo": "",
+                        "short": "Інтенсивна маска для відновлення. Підходить волоссю після освітлення та фарбування.",
+                        "how_to_use": "Нанесіть на довжину після шампуню, витримайте 5–10 хвилин, змийте. 1–2 рази на тиждень.",
+                        "volumes": {
+                            BTN_MASK_250: {"ml": 250, "price": 1300},
+                        }
+                    },
+                    "acidic_leavein": {
+                        "title": "Redken Acidic Bonding Concentrate Leave-In Treatment",
+                        "photo": "",
+                        "short": "Незмивний крем-захист. Зменшує пухнастість, захищає довжину, допомагає зберігати гладкість.",
+                        "how_to_use": "Нанесіть невелику кількість на вологу або суху довжину. Не змивайте.",
+                        "volumes": {
+                            BTN_LEAVEIN_150: {"ml": 150, "price": 1000},
+                        }
+                    },
+                }
+            },
+
+            # Заготовки под остальные линейки (цены/товары поменяешь)
+            "All Soft": {"items": {}},
+            "All Soft Mega Curls": {"items": {}},
+            "Blondage": {"items": {}},
+            "Extreme": {"items": {}},
+            "Frizz Dismiss": {"items": {}},
+            "Volume Injection": {"items": {}},
+        }
+    },
+
+    "EG by Gromova": {
+        "lines": {
+            "Система догляду": {"items": {}},
         }
     }
 }
 
-# =========================
-# STATE (navigation stack + selected options + cart)
-# =========================
-user_nav = {}      # chat_id -> [screen1, screen2, ...]
-user_selected = {} # chat_id -> dict (selected product, volume, etc.)
-user_cart = {}     # chat_id -> list of items
+REDKEN_LINES_ROWS = [
+    ("Acidic Bonding", "All Soft"),
+    ("All Soft Mega Curls", "Blondage"),
+    ("Extreme", "Frizz Dismiss"),
+    ("Volume Injection",),
+]
 
-# Screen names
+# =========================
+# STATE
+# =========================
+user_nav = {}        # chat_id -> stack
+user_selected = {}   # chat_id -> {"brand","line","item_key","volume_btn"}
+user_cart = {}       # chat_id -> list of items
+
+user_checkout = {}       # chat_id -> dict
+user_checkout_step = {}  # chat_id -> int
+
 SCR_MAIN = "main"
 SCR_SALON = "salon"
 SCR_PRICE = "price"
 SCR_SHOP = "shop"
-SCR_REDKEN = "redken"
-SCR_PRODUCT_ACIDIC = "product_acidic"
-SCR_VOL_ACIDIC = "vol_acidic"
+SCR_BRAND_REDKEN = "brand_redken"
+SCR_BRAND_EG = "brand_eg"
+SCR_LINE = "line"
+SCR_ITEM = "item"
+SCR_VOLUMES = "volumes"
 SCR_CART = "cart"
 
-# =========================
-# KEYBOARDS
-# =========================
-def kb_main():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_SALON, BTN_SHOP)
-    m.row(BTN_CART)
-    m.row(BTN_ADMIN)
-    return m
+CHECKOUT_FIELDS = [
+    ("first_name", "Вкажіть ваше ім’я 👇"),
+    ("last_name", "Вкажіть ваше прізвище 👇"),
+    ("phone", "Вкажіть номер телефону 📞\nПриклад: +380XXXXXXXXX"),
+    ("city", "Вкажіть місто 🏙️"),
+    ("np_type", "Доставка Новою Поштою:\nНапишіть: Відділення або Поштомат 📦"),
+    ("np_number", "Вкажіть номер відділення або поштомату 👇"),
+]
 
-def kb_salon():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_PRICE)
-    m.row(BTN_ADMIN)
-    m.row(BTN_HOME)
-    return m
-
-def kb_price():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(SVC_CAMO, SVC_INTEGR)
-    m.row(SVC_TONE, SVC_COLOR)
-    m.row(SVC_HIGHL, SVC_AIRTOUCH)
-    m.row(SVC_DARK_OUT, SVC_CUT)
-    m.row(SVC_RECON)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
-
-def kb_shop():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_REDKEN, BTN_EG)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
-
-def kb_redken():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(RD_ACIDIC, RD_ALLSOFT)
-    m.row(RD_MEGA_CURL, RD_BLONDAGE)
-    m.row(RD_EXTREME, RD_FRIZZ)
-    m.row(RD_VOLUME)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
-
-def kb_product():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_CHOOSE_VOLUME)
-    m.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
-
-def kb_volumes():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_VOL_300, BTN_VOL_500)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
-
-def kb_cart():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_CART_SHOW, BTN_CART_CLEAR)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
-
-# =========================
-# NAV HELPERS
-# =========================
 def nav_init(chat_id: int):
-    if chat_id not in user_nav:
-        user_nav[chat_id] = []
-    if chat_id not in user_selected:
-        user_selected[chat_id] = {}
-    if chat_id not in user_cart:
-        user_cart[chat_id] = []
+    user_nav.setdefault(chat_id, [SCR_MAIN])
+    user_selected.setdefault(chat_id, {})
+    user_cart.setdefault(chat_id, [])
 
 def nav_go(chat_id: int, screen: str):
     nav_init(chat_id)
@@ -220,239 +300,292 @@ def nav_go(chat_id: int, screen: str):
 def nav_back(chat_id: int):
     nav_init(chat_id)
     if len(user_nav[chat_id]) > 1:
-        user_nav[chat_id].pop()  # remove current
-    else:
-        user_nav[chat_id] = [SCR_MAIN]
+        user_nav[chat_id].pop()
 
 def nav_current(chat_id: int) -> str:
     nav_init(chat_id)
-    if not user_nav[chat_id]:
-        user_nav[chat_id] = [SCR_MAIN]
     return user_nav[chat_id][-1]
 
-def show_screen(chat_id: int, screen: str):
-    # Central place: what to show for each screen
-    if screen == SCR_MAIN:
-        bot.send_message(chat_id, "Вітаємо 💛\nОберіть розділ нижче:", reply_markup=kb_main())
+# =========================
+# RENDER SCREEN
+# =========================
+def show_main(chat_id: int):
+    bot.send_message(chat_id, "Вітаємо 💛\nОберіть розділ нижче:", reply_markup=kb_main())
 
-    elif screen == SCR_SALON:
-        bot.send_message(chat_id, "Розділ: Салон ✂️\nОберіть, що потрібно:", reply_markup=kb_salon())
+def show_salon(chat_id: int):
+    bot.send_message(chat_id, "Розділ: Салон ✂️\nОберіть, що потрібно:", reply_markup=kb_salon())
 
-    elif screen == SCR_PRICE:
-        bot.send_message(chat_id, "Прайс салону 💰\nОберіть послугу:", reply_markup=kb_price())
+def show_price(chat_id: int):
+    bot.send_message(chat_id, "Прайс салону 💰\nОберіть послугу:", reply_markup=kb_price(PRICE_ROWS))
 
-    elif screen == SCR_SHOP:
-        bot.send_message(chat_id, "Магазин косметики 🛍️\nОберіть бренд:", reply_markup=kb_shop())
+def show_shop(chat_id: int):
+    bot.send_message(chat_id, "Магазин косметики 🛍️\nОберіть бренд:", reply_markup=kb_shop())
 
-    elif screen == SCR_REDKEN:
-        bot.send_message(chat_id, "Redken 🧴\nОберіть лінійку:", reply_markup=kb_redken())
+def show_redken_lines(chat_id: int):
+    bot.send_message(chat_id, "Redken 🧴\nОберіть лінійку:", reply_markup=kb_lines(REDKEN_LINES_ROWS))
 
-    elif screen == SCR_PRODUCT_ACIDIC:
-        p = PRODUCTS["acidic_shampoo"]
-        caption = f'{p["title"]} 300 мл\n\n{p["short"]}'
-        bot.send_photo(chat_id, p["photo"], caption=caption, reply_markup=kb_product())
+def show_cart(chat_id: int):
+    bot.send_message(chat_id, "Кошик 🧺\nОберіть дію:", reply_markup=kb_cart())
 
-    elif screen == SCR_VOL_ACIDIC:
-        bot.send_message(chat_id, "Оберіть обʼєм:", reply_markup=kb_volumes())
+def show_item(chat_id: int):
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
 
-    elif screen == SCR_CART:
-        bot.send_message(chat_id, "Кошик 🧺\nОберіть дію:", reply_markup=kb_cart())
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    caption = f"<b>{item['title']}</b>\n\n{item['short']}\n\nНатисніть «Вибрати обʼєм»."
 
+    photo = item.get("photo", "").strip()
+    if photo:
+        bot.send_photo(chat_id, photo, caption=caption, reply_markup=kb_product())
     else:
-        # fallback
-        bot.send_message(chat_id, "Оберіть кнопку в меню нижче ✅", reply_markup=kb_main())
+        bot.send_message(chat_id, caption, reply_markup=kb_product())
+
+def show_volumes(chat_id: int):
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    volume_buttons = list(item["volumes"].keys())
+
+    rows = []
+    # делаем кнопки по 2 в ряд
+    for i in range(0, len(volume_buttons), 2):
+        rows.append(tuple(volume_buttons[i:i+2]))
+
+    bot.send_message(chat_id, "Оберіть обʼєм:", reply_markup=kb_volumes(rows))
 
 # =========================
 # COMMANDS
 # =========================
 @bot.message_handler(commands=["start"])
 def cmd_start(message):
+    if not is_private(message):
+        return
     chat_id = message.chat.id
     nav_init(chat_id)
     user_nav[chat_id] = [SCR_MAIN]
     user_selected[chat_id] = {}
-    show_screen(chat_id, SCR_MAIN)
+    show_main(chat_id)
+
+@bot.message_handler(commands=["id"])
+def cmd_id(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id if message.from_user else None
+    bot.send_message(chat_id, f"chat_id: {chat_id}\nuser_id: {user_id}", reply_markup=types.ReplyKeyboardRemove())
 
 # =========================
-# GLOBAL NAV BUTTONS
+# GLOBAL NAV (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == BTN_HOME)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_HOME)
 def handle_home(message):
     chat_id = message.chat.id
     nav_init(chat_id)
     user_nav[chat_id] = [SCR_MAIN]
-    show_screen(chat_id, SCR_MAIN)
+    show_main(chat_id)
 
-@bot.message_handler(func=lambda m: m.text == BTN_BACK)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_BACK)
 def handle_back(message):
     chat_id = message.chat.id
     nav_back(chat_id)
-    show_screen(chat_id, nav_current(chat_id))
+    cur = nav_current(chat_id)
+
+    if cur == SCR_MAIN:
+        show_main(chat_id)
+        return
+    if cur == SCR_SALON:
+        show_salon(chat_id)
+        return
+    if cur == SCR_PRICE:
+        show_price(chat_id)
+        return
+    if cur == SCR_SHOP:
+        show_shop(chat_id)
+        return
+    if cur == SCR_BRAND_REDKEN:
+        show_redken_lines(chat_id)
+        return
+    if cur == SCR_CART:
+        show_cart(chat_id)
+        return
+
+    # запасной выход
+    show_main(chat_id)
 
 # =========================
-# MAIN MENU
+# MAIN MENU (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == BTN_SALON)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_SALON)
 def open_salon(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_SALON)
-    show_screen(chat_id, SCR_SALON)
+    show_salon(chat_id)
 
-@bot.message_handler(func=lambda m: m.text == BTN_SHOP)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_SHOP)
 def open_shop(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_SHOP)
-    show_screen(chat_id, SCR_SHOP)
+    show_shop(chat_id)
 
-@bot.message_handler(func=lambda m: m.text == BTN_ADMIN)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_ADMIN)
 def contact_admin(message):
     chat_id = message.chat.id
     bot.send_message(chat_id, f"Напишіть адміністратору 👇\n{ADMIN_LINK}", reply_markup=kb_main())
 
-@bot.message_handler(func=lambda m: m.text == BTN_CART)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CART)
 def open_cart(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_CART)
-    show_screen(chat_id, SCR_CART)
+    show_cart(chat_id)
 
 # =========================
-# SALON
+# SALON (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == BTN_PRICE)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_PRICE)
 def open_price(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_PRICE)
-    show_screen(chat_id, SCR_PRICE)
+    show_price(chat_id)
 
-@bot.message_handler(func=lambda m: m.text in SERVICE_TEXTS)
+@bot.message_handler(func=lambda m: is_private(m) and m.text in SERVICE_TEXTS)
 def show_service(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, SERVICE_TEXTS[message.text], reply_markup=kb_price())
+    bot.send_message(chat_id, SERVICE_TEXTS[message.text], reply_markup=kb_price(PRICE_ROWS))
 
 # =========================
-# SHOP
+# SHOP (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == BTN_REDKEN)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_REDKEN)
 def open_redken(message):
     chat_id = message.chat.id
-    nav_go(chat_id, SCR_REDKEN)
-    show_screen(chat_id, SCR_REDKEN)
+    user_selected[chat_id] = {"brand": "Redken"}
+    nav_go(chat_id, SCR_BRAND_REDKEN)
+    show_redken_lines(chat_id)
 
-@bot.message_handler(func=lambda m: m.text == BTN_EG)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_EG)
 def open_eg(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, "EG by Gromova (додамо товари пізніше) 💛", reply_markup=kb_shop())
+    bot.send_message(chat_id, "EG by Gromova (товари додамо наступним блоком) 💛", reply_markup=kb_shop())
 
 # =========================
-# REDKEN LINES
+# REDKEN LINES (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == RD_ACIDIC)
-def show_acidic_product(message):
+@bot.message_handler(func=lambda m: is_private(m) and m.text in CATALOG["Redken"]["lines"].keys())
+def redken_line(message):
     chat_id = message.chat.id
-    # remember selected product
-    nav_init(chat_id)
-    user_selected[chat_id]["product_key"] = "acidic_shampoo"
-    user_selected[chat_id].pop("volume_btn", None)  # reset volume
-    nav_go(chat_id, SCR_PRODUCT_ACIDIC)
-    show_screen(chat_id, SCR_PRODUCT_ACIDIC)
+    line = message.text
 
-# placeholders for other lines (so user doesn't get stuck)
-@bot.message_handler(func=lambda m: m.text in {RD_ALLSOFT, RD_MEGA_CURL, RD_BLONDAGE, RD_EXTREME, RD_FRIZZ, RD_VOLUME})
-def other_redken_lines(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id, "Цю лінійку додамо наступною ✅", reply_markup=kb_redken())
+    # когда товаров нет — говорим и возвращаемся в линии
+    items = CATALOG["Redken"]["lines"][line]["items"]
+    if not items:
+        bot.send_message(chat_id, "Цю лінійку додамо наступною ✅", reply_markup=kb_lines(REDKEN_LINES_ROWS))
+        return
+
+    # сейчас в Acidic Bonding открываем первый товар (шампунь)
+    # позже добавлю меню товаров внутри линии
+    first_key = list(items.keys())[0]
+    user_selected[chat_id] = {"brand": "Redken", "line": line, "item_key": first_key}
+    nav_go(chat_id, SCR_ITEM)
+    show_item(chat_id)
 
 # =========================
-# PRODUCT ACTIONS
+# PRODUCT ACTIONS (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == BTN_CHOOSE_VOLUME)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CHOOSE_VOLUME)
 def choose_volume(message):
     chat_id = message.chat.id
-    # only from product screen makes sense, but we allow anyway
-    nav_go(chat_id, SCR_VOL_ACIDIC)
-    show_screen(chat_id, SCR_VOL_ACIDIC)
+    sel = user_selected.get(chat_id, {})
+    ready = sel.get("brand") and sel.get("line") and sel.get("item_key")
+    if not ready:
+        show_shop(chat_id)
+        return
+    nav_go(chat_id, SCR_VOLUMES)
+    show_volumes(chat_id)
 
-@bot.message_handler(func=lambda m: m.text in {BTN_VOL_300, BTN_VOL_500})
+@bot.message_handler(func=lambda m: is_private(m) and m.text in {BTN_VOL_300, BTN_VOL_500, BTN_MASK_250, BTN_LEAVEIN_150, "300 мл — 950 грн", "500 мл — 1250 грн"})
 def select_volume(message):
     chat_id = message.chat.id
-    nav_init(chat_id)
-    product_key = user_selected[chat_id].get("product_key")
-    if not product_key:
-        # no product chosen -> return to main
-        user_nav[chat_id] = [SCR_MAIN]
-        show_screen(chat_id, SCR_MAIN)
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    btn = message.text
+
+    volumes = item["volumes"]
+    if btn not in volumes:
+        show_volumes(chat_id)
         return
 
-    p = PRODUCTS[product_key]
-    if message.text not in p["volumes"]:
-        bot.send_message(chat_id, "Оберіть обʼєм з кнопок нижче ✅", reply_markup=kb_volumes())
-        return
+    sel["volume_btn"] = btn
+    v = volumes[btn]
+    bot.send_message(chat_id, f"Обрано: {v['ml']} мл — {v['price']} грн ✅\nТепер натисніть «Додати в кошик».", reply_markup=kb_product())
 
-    user_selected[chat_id]["volume_btn"] = message.text
-    info = p["volumes"][message.text]
-    bot.send_message(
-        chat_id,
-        f"Ви обрали {info['ml']} мл — {info['price']} грн\n\nТепер натисніть «Додати в кошик».",
-        reply_markup=kb_product()
-    )
-    # after choosing volume we go back to product screen logically
-    # (so "Назад" from product returns to Redken)
-    # remove the volume screen from stack if it is current
-    if nav_current(chat_id) == SCR_VOL_ACIDIC:
+    # возвращаемся со скрина volumes на item
+    if nav_current(chat_id) == SCR_VOLUMES:
         nav_back(chat_id)
 
-@bot.message_handler(func=lambda m: m.text == BTN_HOW_TO_USE)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_HOW_TO_USE)
 def how_to_use(message):
     chat_id = message.chat.id
-    nav_init(chat_id)
-    product_key = user_selected[chat_id].get("product_key")
-    if not product_key:
-        bot.send_message(chat_id, "Спочатку оберіть товар ✅", reply_markup=kb_main())
-        return
-    p = PRODUCTS[product_key]
-    bot.send_message(chat_id, p["how_to_use"], reply_markup=kb_product())
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
 
-@bot.message_handler(func=lambda m: m.text == BTN_ADD_TO_CART)
+    ok = brand and line and item_key
+    if not ok:
+        show_shop(chat_id)
+        return
+
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    bot.send_message(chat_id, item["how_to_use"], reply_markup=kb_product())
+
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_ADD_TO_CART)
 def add_to_cart(message):
     chat_id = message.chat.id
-    nav_init(chat_id)
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+    volume_btn = sel.get("volume_btn")
 
-    product_key = user_selected[chat_id].get("product_key")
-    volume_btn = user_selected[chat_id].get("volume_btn")
-
-    if not product_key:
-        bot.send_message(chat_id, "Спочатку оберіть товар ✅", reply_markup=kb_main())
+    ok = brand and line and item_key
+    if not ok:
+        show_shop(chat_id)
         return
 
     if not volume_btn:
         bot.send_message(chat_id, "Спочатку натисніть «Вибрати обʼєм» ✅", reply_markup=kb_product())
         return
 
-    p = PRODUCTS[product_key]
-    info = p["volumes"][volume_btn]
-    item = {
-        "title": p["title"],
-        "ml": info["ml"],
-        "price": info["price"]
-    }
-    user_cart[chat_id].append(item)
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    v = item["volumes"][volume_btn]
+
+    user_cart[chat_id].append({
+        "title": item["title"],
+        "ml": v["ml"],
+        "price": v["price"]
+    })
 
     bot.send_message(
         chat_id,
-        f"Додано в кошик ✅\n{item['title']} — {item['ml']} мл — {item['price']} грн\n\n"
-        f"Можна додати ще або відкрити кошик: «{BTN_CART}».",
+        f"Додано в кошик ✅\n{item['title']} — {v['ml']} мл — {v['price']} грн\n\nВідкрийте кошик кнопкою «{BTN_CART}».",
         reply_markup=kb_product()
     )
 
 # =========================
-# CART
+# CART (личка)
 # =========================
-@bot.message_handler(func=lambda m: m.text == BTN_CART_SHOW)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CART_SHOW)
 def cart_show(message):
     chat_id = message.chat.id
-    nav_init(chat_id)
+    items = user_cart.get(chat_id, [])
 
-    items = user_cart[chat_id]
     if not items:
         bot.send_message(chat_id, "Кошик порожній 🫶", reply_markup=kb_cart())
         return
@@ -465,49 +598,30 @@ def cart_show(message):
     text = "Ваш кошик 🧺\n\n" + "\n".join(lines) + f"\n\nРазом: {total} грн"
     bot.send_message(chat_id, text, reply_markup=kb_cart())
 
-@bot.message_handler(func=lambda m: m.text == BTN_CART_CLEAR)
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CART_CLEAR)
 def cart_clear(message):
     chat_id = message.chat.id
-    nav_init(chat_id)
     user_cart[chat_id] = []
     bot.send_message(chat_id, "Кошик очищено ✅", reply_markup=kb_cart())
 
 # =========================
-# CHECKOUT → SEND TO GROUP
+# CHECKOUT (личка)
 # =========================
+def ask_next_field(chat_id: int):
+    step = user_checkout_step.get(chat_id, 0)
 
-# 👉 ВСТАВЬ СЮДА ID ГРУППЫ (начинается с -100...)
-ADMIN_CHAT_ID = -1000000000000  # ← ПОКА ВРЕМЕННО, потом заменишь
+    if step >= len(CHECKOUT_FIELDS):
+        send_order_to_admin(chat_id)
+        return
 
+    key, question = CHECKOUT_FIELDS[step]
+    bot.send_message(chat_id, question)
 
-# Храним данные заказа клиента
-user_checkout = {}
-user_checkout_step = {}
-
-
-CHECKOUT_FIELDS = [
-    ("first_name", "Вкажіть ваше ім’я 👇"),
-    ("last_name", "Вкажіть ваше прізвище 👇"),
-    ("phone", "Вкажіть номер телефону 📞\nПриклад: +380XXXXXXXXX"),
-    ("city", "Вкажіть місто 🏙️"),
-    ("np_type", "Доставка Новою Поштою:\nНапишіть: Відділення або Поштомат 📦"),
-    ("np_number", "Вкажіть номер відділення або поштомату 👇"),
-]
-
-
-def kb_cart():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row(BTN_CART_SHOW, BTN_CART_CLEAR)
-    kb.row("✅ Оформити замовлення")
-    kb.row(BTN_BACK, BTN_HOME)
-    return kb
-
-
-@bot.message_handler(func=lambda m: m.text == "✅ Оформити замовлення")
+@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CHECKOUT)
 def start_checkout(message):
     chat_id = message.chat.id
-
     items = user_cart.get(chat_id, [])
+
     if not items:
         bot.send_message(chat_id, "Кошик порожній 🧺", reply_markup=kb_cart())
         return
@@ -518,43 +632,26 @@ def start_checkout(message):
     bot.send_message(chat_id, "Оформлюємо замовлення 📝\nВідповідайте по черзі.", reply_markup=types.ReplyKeyboardRemove())
     ask_next_field(chat_id)
 
-
-def ask_next_field(chat_id):
-    step = user_checkout_step[chat_id]
-
-    if step >= len(CHECKOUT_FIELDS):
-        send_order_to_group(chat_id)
-        return
-
-    key, question = CHECKOUT_FIELDS[step]
-    bot.send_message(chat_id, question)
-
-
-@bot.message_handler(func=lambda m: m.chat.id in user_checkout_step)
-def collect_checkout_data(message):
+@bot.message_handler(func=lambda m: is_private(m) and m.chat.id in user_checkout_step)
+def collect_checkout(message):
     chat_id = message.chat.id
-
     step = user_checkout_step.get(chat_id)
-    if step is None:
-        return
-
     key, _ = CHECKOUT_FIELDS[step]
     value = (message.text or "").strip()
 
-    # Проверка телефона
     if key == "phone":
         cleaned = value.replace(" ", "").replace("-", "")
-        if not (cleaned.startswith("+") and len(cleaned) >= 10):
+        good = cleaned.startswith("+") and len(cleaned) >= 10
+        if not good:
             bot.send_message(chat_id, "Номер введено некоректно ❌\nПриклад: +380XXXXXXXXX")
             return
+        value = cleaned
 
     user_checkout[chat_id][key] = value
-    user_checkout_step[chat_id] += 1
-
+    user_checkout_step[chat_id] = step + 1
     ask_next_field(chat_id)
 
-
-def send_order_to_group(chat_id):
+def send_order_to_admin(chat_id: int):
     items = user_cart.get(chat_id, [])
     data = user_checkout.get(chat_id, {})
 
@@ -563,55 +660,43 @@ def send_order_to_group(chat_id):
     lines = []
     for idx, i in enumerate(items, 1):
         lines.append(f"{idx}) {i['title']} — {i['ml']} мл — {i['price']} грн")
-
     items_text = "\n".join(lines)
 
     text = (
-        "🔥 НОВЕ ЗАМОВЛЕННЯ\n\n"
-        f"👤 {data['first_name']} {data['last_name']}\n"
-        f"📞 {data['phone']}\n"
-        f"🏙️ {data['city']}\n"
-        f"📦 НП: {data['np_type']} №{data['np_number']}\n\n"
-        f"🧴 Товари:\n{items_text}\n\n"
-        f"💰 Разом: {total} грн\n\n"
-        f"🆔 Telegram клієнта: {chat_id}"
+        "🔥 <b>НОВЕ ЗАМОВЛЕННЯ</b>\n\n"
+        f"👤 <b>Клієнт:</b> {data.get('first_name','')} {data.get('last_name','')}\n"
+        f"📞 <b>Телефон:</b> {data.get('phone','')}\n"
+        f"🏙️ <b>Місто:</b> {data.get('city','')}\n"
+        f"📦 <b>НП:</b> {data.get('np_type','')} №{data.get('np_number','')}\n\n"
+        f"🧴 <b>Товари:</b>\n{items_text}\n\n"
+        f"💰 <b>Разом:</b> {total} грн\n"
+        f"🆔 <b>Chat ID клієнта:</b> <code>{chat_id}</code>"
     )
 
-    try:
-        bot.send_message(ADMIN_CHAT_ID, text)
-        bot.send_message(chat_id, "Дякуємо ❤️ Замовлення відправлено адміністратору.", reply_markup=kb_main())
-    except:
-        bot.send_message(chat_id, "Помилка відправки адміністратору ❌")
+    sent = safe_send_to_admin(text)
 
-    # Очистка
+    if sent:
+        bot.send_message(chat_id, "Дякуємо ❤️ Замовлення відправлено адміністратору.", reply_markup=kb_main())
+    else:
+        bot.send_message(chat_id, "Помилка відправки адміністратору ❌\nАдміністратор: " + ADMIN_LINK, reply_markup=kb_main())
+
+    # очистка
     user_cart[chat_id] = []
     user_checkout.pop(chat_id, None)
     user_checkout_step.pop(chat_id, None)
 
 # =========================
-# FALLBACK (unknown text)
-# IMPORTANT: must be LAST handler
+# FALLBACK (ПОСЛЕДНИМ)
+# В группах молчим, чтобы меню не “дублировалось” в чате заказов
 # =========================
-
-@bot.message_handler(commands=["id"])
-def cmd_id(message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    bot.send_message(
-        chat_id,
-        f"chat_id: {chat_id}\nuser_id: {user_id}"
-    )
-    
 @bot.message_handler(func=lambda m: True)
-def unknown(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id, "Я вас зрозуміла ✅\nОберіть кнопку в меню нижче.", reply_markup=kb_main())
+def fallback(message):
+    if not is_private(message):
+        return
+    bot.send_message(message.chat.id, "Я вас зрозуміла ✅\nОберіть кнопку в меню нижче.", reply_markup=kb_main())
 
 # =========================
 # RUN
 # =========================
-# Important for Render + polling:
-# - remove webhook just in case
-# - skip_pending=True helps avoid old queued updates
 bot.remove_webhook()
 bot.infinity_polling(skip_pending=True)
