@@ -22,6 +22,17 @@ RD_FRIZZ = "Frizz Dismiss"
 RD_VOLUME = "Volume Injection"
 BTN_PRICE = "Прайс салону"
 
+# ===== Кнопки товара Acidic =====
+BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
+BTN_VOL_300 = "300 мл — 950 грн"
+BTN_VOL_500 = "500 мл — 1250 грн"
+BTN_ADD_TO_CART = "Додати в кошик"
+BTN_HOW_TO_USE = "Як правильно використовувати"
+BTN_BACK_PRODUCT = "⬅ Назад до товару"
+
+VOL_300 = "300 мл — 950 грн"
+VOL_500 = "500 мл — 1250 грн"
+
 SVC_CAMO = "Камуфляж сивини"
 SVC_TONE = "Тонування"
 SVC_COLOR = "Фарбування"
@@ -199,6 +210,19 @@ def redken_menu():
     markup.row(BTN_BACK)
     return markup
     
+def acidic_volume_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(BTN_VOL_300, BTN_VOL_500)
+    markup.row(BTN_BACK_PRODUCT)
+    return markup
+    
+def product_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(BTN_CHOOSE_VOLUME)
+    markup.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
+    markup.row(BTN_BACK_PRODUCT)
+    return markup
+    
 # ===== Start =====
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -257,5 +281,28 @@ def show_acidic(message):
         message.chat.id,
         "https://raw.githubusercontent.com/gromovaglushakelena-hub/telegram-bot/main/images/redken/acidic-bonding-shampoo-300.jpg",
         caption="Redken Acidic Bonding Shampoo 300 ml\n\nВідновлюючий шампунь для пошкодженого волосся."
-    )        
-bot.infinity_polling()
+    )    
+    @bot.message_handler(func=lambda m: m.text == BTN_CHOOSE_VOLUME)
+def choose_volume(message):
+    bot.send_message(
+        message.chat.id,
+        "Оберіть обʼєм:",
+        reply_markup=acidic_volume_menu()
+    )
+    @bot.message_handler(func=lambda m: m.text == BTN_VOL_300)
+def select_300(message):
+    bot.send_message(
+        message.chat.id,
+        "Ви обрали 300 мл — 950 грн\n\nНатисніть 'Додати в кошик'",
+        reply_markup=product_menu()
+    )
+
+
+@bot.message_handler(func=lambda m: m.text == BTN_VOL_500)
+def select_500(message):
+    bot.send_message(
+        message.chat.id,
+        "Ви обрали 500 мл — 1250 грн\n\nНатисніть 'Додати в кошик'",
+        reply_markup=product_menu()
+    )
+    bot.infinity_polling()
