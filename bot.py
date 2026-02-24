@@ -592,6 +592,16 @@ def send_order_to_group(chat_id):
 # FALLBACK (unknown text)
 # IMPORTANT: must be LAST handler
 # =========================
+
+@bot.message_handler(commands=["id"])
+def cmd_id(message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    bot.send_message(
+        chat_id,
+        f"chat_id: {chat_id}\nuser_id: {user_id}"
+    )
+    
 @bot.message_handler(func=lambda m: True)
 def unknown(message):
     chat_id = message.chat.id
