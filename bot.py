@@ -310,8 +310,122 @@ CATALOG = {
         }
     }
 }
+"Extreme": {
+    "items": {
+        "extreme_shampoo": {
+            "title": "Redken Extreme Shampoo",
+            "photo": "URL_EXTREME_SHAMPOO",
+            "short": "Зміцнюючий шампунь для ослабленого та ламкого волосся.",
+            "how_to_use": "Нанесіть на вологе волосся, спіньте, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "extreme_conditioner": {
+            "title": "Redken Extreme Conditioner",
+            "photo": "URL_EXTREME_CONDITIONER",
+            "short": "Кондиціонер для відновлення структури волосся.",
+            "how_to_use": "Нанесіть після шампуню на довжину, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        }
+    }
+},
 
-    "EG by Gromova": {
+"Extreme Length": {
+    "items": {
+        "extreme_length_shampoo": {
+            "title": "Redken Extreme Length Shampoo",
+            "photo": "URL_EXTREME_LENGTH_SH",
+            "short": "Шампунь з біотином для зміцнення довжини.",
+            "how_to_use": "Нанесіть на вологе волосся, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "extreme_length_conditioner": {
+            "title": "Redken Extreme Length Conditioner",
+            "photo": "URL_EXTREME_LENGTH_COND",
+            "short": "Кондиціонер для росту та зменшення ламкості.",
+            "how_to_use": "Нанесіть на довжину після шампуню.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        }
+    }
+},
+
+"Volume Injection": {
+    "items": {
+        "volume_shampoo": {
+            "title": "Redken Volume Injection Shampoo",
+            "photo": "URL_VOLUME_SH",
+            "short": "Шампунь для надання об’єму тонкому волоссю.",
+            "how_to_use": "Нанесіть на вологе волосся, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "volume_conditioner": {
+            "title": "Redken Volume Injection Conditioner",
+            "photo": "URL_VOLUME_COND",
+            "short": "Легкий кондиціонер для об’єму без обтяження.",
+            "how_to_use": "Нанесіть після шампуню на довжину.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        }
+    }
+},
+
+"Frizz Dismiss": {
+    "items": {
+        "frizz_shampoo": {
+            "title": "Redken Frizz Dismiss Shampoo",
+            "photo": "URL_FRIZZ_SH",
+            "short": "Шампунь проти пухнастості та вологості.",
+            "how_to_use": "Нанесіть на вологе волосся, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "frizz_conditioner": {
+            "title": "Redken Frizz Dismiss Conditioner",
+            "photo": "URL_FRIZZ_COND",
+            "short": "Кондиціонер для гладкості та контролю пухнастості.",
+            "how_to_use": "Нанесіть після шампуню на довжину.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        }
+    }
+},
+
+"Grow Full": {
+    "items": {
+        "growfull_shampoo": {
+            "title": "Redken Grow Full Shampoo",
+            "photo": "URL_GROWFULL_SH",
+            "short": "Шампунь для стимуляції густоти волосся.",
+            "how_to_use": "Нанесіть на шкіру голови, змийте.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        },
+        "growfull_conditioner": {
+            "title": "Redken Grow Full Conditioner",
+            "photo": "URL_GROWFULL_COND",
+            "short": "Кондиціонер для зміцнення та об’єму.",
+            "how_to_use": "Нанесіть на довжину після шампуню.",
+            "volumes": {
+                "300 мл — 950 грн": {"ml": 300, "price": 950}
+            }
+        }
+    }
+},
+            
+            "EG by Gromova": {
         "lines": {
             "Система догляду": {"items": {}},
         }
