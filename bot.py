@@ -47,11 +47,6 @@ BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
 BTN_ADD_TO_CART = "Додати в кошик"
 BTN_HOW_TO_USE = "Як правильно використовувати"
 
-BTN_VOL_300 = "300 мл — 950 грн"
-BTN_VOL_500 = "500 мл — 1250 грн"
-BTN_MASK_250 = "250 мл — 1300 грн"
-BTN_LEAVEIN_150 = "150 мл — 1000 грн"
-
 # =========================
 # HELPERS
 # =========================
@@ -505,29 +500,7 @@ def choose_volume(message):
     nav_go(chat_id, SCR_VOLUMES)
     show_volumes(chat_id)
 
-@bot.message_handler(func=lambda m: is_private(m) and m.text in {BTN_VOL_300, BTN_VOL_500, BTN_MASK_250, BTN_LEAVEIN_150, "300 мл — 950 грн", "500 мл — 1250 грн"})
-def select_volume(message):
-    chat_id = message.chat.id
-    sel = user_selected.get(chat_id, {})
-    brand = sel.get("brand")
-    line = sel.get("line")
-    item_key = sel.get("item_key")
 
-    item = CATALOG[brand]["lines"][line]["items"][item_key]
-    btn = message.text
-
-    volumes = item["volumes"]
-    if btn not in volumes:
-        show_volumes(chat_id)
-        return
-
-    sel["volume_btn"] = btn
-    v = volumes[btn]
-    bot.send_message(chat_id, f"Обрано: {v['ml']} мл — {v['price']} грн ✅\nТепер натисніть «Додати в кошик».", reply_markup=kb_product())
-
-    # возвращаемся со скрина volumes на item
-    if nav_current(chat_id) == SCR_VOLUMES:
-        nav_back(chat_id)
 
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_HOW_TO_USE)
 def how_to_use(message):
