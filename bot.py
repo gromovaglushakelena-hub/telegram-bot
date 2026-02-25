@@ -793,18 +793,31 @@ def show_item(chat_id: int):
 
     item = CATALOG[brand]["lines"][line]["items"][item_key]
 
-    prices = format_prices(item)
-    prices_block = f"\n\n<b>Ціни:</b>\n{prices}" if prices else ""
+    # Формируем блок цен
+    vols = item.get("volumes", {})
+    price_text = ""
+    for k in vols.keys():
+        price_text += f"• {k}\n"
+
+    full_block = ""
+    if item.get("full"):
+        full_block = f"\n<b>Опис:</b>\n{item['full']}\n"
 
     caption = (
         f"<b>{item['title']}</b>\n\n"
-        f"{item['short']}"
-        f"{prices_block}\n\n"
-        "Натисніть «Вибрати обʼєм» ✅"
+        f"{item['short']}\n"
+        f"{full_block}\n"
+        f"<b>Ціни:</b>\n{price_text}\n"
+        "Натисніть «Вибрати обʼєм»."
     )
 
-    photo = (item.get("photo") or "").strip()
-    send_local_photo(chat_id, photo, caption, kb_product())
+    photo = item.get("photo", "").strip()
+
+    if photo and os.path.exists(photo):
+        with open(photo, "rb") as f:
+            bot.send_photo(chat_id, f, caption=caption, reply_markup=kb_product())
+    else:
+        bot.send_message(chat_id, caption, reply_markup=kb_product())
 
 def show_volumes(chat_id: int):
     sel = user_selected.get(chat_id, {})
