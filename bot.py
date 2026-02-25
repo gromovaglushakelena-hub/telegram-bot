@@ -116,67 +116,94 @@ def try_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
 # =========================
 # KEYBOARDS
 # =========================
+
 def kb_main():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_SALON, BTN_SHOP)
-    m.row(BTN_CART)
-    m.row(BTN_ADMIN)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(BTN_SALON, BTN_SHOP)
+    kb.row(BTN_CART)
+    kb.row(BTN_ADMIN)
+    return kb
+
 
 def kb_salon():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_PRICE)
-    m.row(BTN_ADMIN)
-    m.row(BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(BTN_PRICE)
+    kb.row(BTN_ADMIN)
+    kb.row(BTN_HOME)
+    return kb
+
 
 def kb_price(services):
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in services:
-        m.row(*row)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    if services:
+        for row in services:
+            if isinstance(row, (list, tuple)):
+                kb.row(*row)
+            else:
+                kb.row(row)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
 
 def kb_shop():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_REDKEN, BTN_EG)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(BTN_REDKEN, BTN_EG)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
 
 def kb_lines(lines):
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in lines:
-        m.row(*row)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    if lines:
+        for row in lines:
+            if isinstance(row, (list, tuple)):
+                kb.row(*row)
+            else:
+                kb.row(row)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
 
 def kb_items(rows):
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in rows:
-        m.row(*row)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    if rows:
+        for row in rows:
+            if isinstance(row, (list, tuple)):
+                kb.row(*row)
+            else:
+                kb.row(row)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
 
 def kb_product():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_CHOOSE_VOLUME)
-    m.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(BTN_CHOOSE_VOLUME)
+    kb.row(BTN_ADD_TO_CART)
+    kb.row(BTN_HOW_TO_USE)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
 
 def kb_volumes(volume_buttons_rows):
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in volume_buttons_rows:
-        m.row(*row)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    if volume_buttons_rows:
+        for row in volume_buttons_rows:
+            if isinstance(row, (list, tuple)):
+                kb.row(*row)
+            else:
+                kb.row(row)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
+
 
 def kb_cart():
-    m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_CART_SHOW, BTN_CART_CLEAR)
-    m.row(BTN_CHECKOUT)
-    m.row(BTN_BACK, BTN_HOME)
-    return m
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row(BTN_CART_SHOW)
+    kb.row(BTN_CART_CLEAR)
+    kb.row(BTN_CHECKOUT)
+    kb.row(BTN_BACK, BTN_HOME)
+    return kb
 
 # =========================
 # SALON SERVICES
