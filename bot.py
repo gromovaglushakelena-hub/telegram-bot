@@ -49,11 +49,23 @@ BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
 BTN_ADD_TO_CART = "Додати в кошик"
 BTN_HOW_TO_USE = "Як правильно використовувати"
 
+def get_photo_file(photo_rel_path: str):
+    """
+    photo_rel_path — путь ВНУТРИ папки images, например:
+    "redken/redken-all-soft-shampoo-300ml.jpg"
+    """
+    try:
+        full_path = os.path.join(IMAGES_DIR, photo_rel_path)
+        return open(full_path, "rb")
+    except Exception as e:
+        log.exception("Photo not found/open error: %s (%s)", photo_rel_path, e)
+        return None
 # =========================
 # HELPERS
 # =========================
 def is_private(message: types.Message) -> bool:
     return message.chat.type == "private"
+
 
 def safe_send_to_admin(text: str) -> bool:
     try:
@@ -67,53 +79,40 @@ def safe_send_to_admin(text: str) -> bool:
     except Exception as e:
         log.exception("Failed to send to admin chat: %s", e)
         return False
-        
-def send_local_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
+
+
+def try_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
     """
-    Telebot не открывает локальный файл, когда передаём строку.
-    Ему нужен open(..., 'rb').
+    Надёжная отправка локального фото.
+    Работает с путями:
+      - "images/xxx.jpg" (относительный)
+      - "/abs/path/images/xxx.jpg" (абсолютный)
+    Когда файла нет или отправка не удалась — отправляет только текст.
     """
     try:
-        if not photo_path:
-            bot.send_message(chat_id, caption, reply_markup=reply_markup)
-            return
+        p = (photo_path or "").strip()
 
-        photo_path = photo_path.strip()
-        if not os.path.exists(photo_path):
-            log.warning("Photo not found: %s", photo_path)
-            bot.send_message(chat_id, caption, reply_markup=reply_markup)
-            return
-
-        with open(photo_path, "rb") as f:
-            bot.send_photo(chat_id, f, caption=caption, reply_markup=reply_markup)
-    except Exception as e:
-        log.exception("Failed to send photo %s: %s", photo_path, e)
-        bot.send_message(chat_id, caption, reply_markup=reply_markup)def try_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
-    """
-    photo_path: относительный путь типа 'images/xxx.jpg' или абсолютный.
-    Пытаемся открыть локальный файл. Если файла нет — отправляем текст.
-    """
-    try:
-        p = photo_path.strip()
+        # Пустой путь -> отправляем текст
         if not p:
             bot.send_message(chat_id, caption, reply_markup=reply_markup)
             return
 
-        abs_path = p
-        if not os.path.isabs(abs_path):
-            # ожидаем, что в каталоге лежит папка images
-            abs_path = os.path.join(BASE_DIR, p)
+        # Собираем абсолютный путь
+        abs_path = p if os.path.isabs(p) else os.path.join(BASE_DIR, p)
 
+        # Файла нет -> отправляем текст
         if not os.path.exists(abs_path):
+            log.warning("Photo not found: %s", abs_path)
             bot.send_message(chat_id, caption, reply_markup=reply_markup)
             return
 
+        # Telebot нужен файл-объект, не строка пути
         with open(abs_path, "rb") as f:
             bot.send_photo(chat_id, f, caption=caption, reply_markup=reply_markup)
-    except Exception:
-        log.exception("Failed to send photo; fallback to text")
-        bot.send_message(chat_id, caption, reply_markup=reply_markup)
 
+    except Exception as e:
+        log.exception("Failed to send photo '%s': %s", photo_path, e)
+        bot.send_message(chat_id, caption, reply_markup=reply_markup)
 # =========================
 # KEYBOARDS
 # =========================
