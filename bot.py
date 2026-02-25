@@ -67,8 +67,28 @@ def safe_send_to_admin(text: str) -> bool:
     except Exception as e:
         log.exception("Failed to send to admin chat: %s", e)
         return False
+        
+def send_local_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
+    """
+    Telebot не открывает локальный файл, когда передаём строку.
+    Ему нужен open(..., 'rb').
+    """
+    try:
+        if not photo_path:
+            bot.send_message(chat_id, caption, reply_markup=reply_markup)
+            return
 
-def try_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
+        photo_path = photo_path.strip()
+        if not os.path.exists(photo_path):
+            log.warning("Photo not found: %s", photo_path)
+            bot.send_message(chat_id, caption, reply_markup=reply_markup)
+            return
+
+        with open(photo_path, "rb") as f:
+            bot.send_photo(chat_id, f, caption=caption, reply_markup=reply_markup)
+    except Exception as e:
+        log.exception("Failed to send photo %s: %s", photo_path, e)
+        bot.send_message(chat_id, caption, reply_markup=reply_markup)def try_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
     """
     photo_path: относительный путь типа 'images/xxx.jpg' или абсолютный.
     Пытаемся открыть локальный файл. Если файла нет — отправляем текст.
@@ -755,24 +775,36 @@ def show_line_items(chat_id: int):
 
     bot.send_message(chat_id, f"{line} 🧴\nОберіть товар:", reply_markup=kb_items(rows))
 
+def format_prices(item: dict) -> str:
+    vols = item.get("volumes", {}) or {}
+    if not vols:
+        return ""
+    # красиво выводим все варианты
+    lines = []
+    for k in vols.keys():
+        lines.append(f"• {k}")
+    return "\n".join(lines)
+
 def show_item(chat_id: int):
     sel = user_selected.get(chat_id, {})
     brand = sel.get("brand")
     line = sel.get("line")
     item_key = sel.get("item_key")
-    if not brand or not line or not item_key:
-        show_redken_lines(chat_id)
-        return
 
     item = CATALOG[brand]["lines"][line]["items"][item_key]
 
+    prices = format_prices(item)
+    prices_block = f"\n\n<b>Ціни:</b>\n{prices}" if prices else ""
+
     caption = (
         f"<b>{item['title']}</b>\n\n"
-        f"{item['short']}\n\n"
-        f"Натисніть «{BTN_CHOOSE_VOLUME}»."
+        f"{item['short']}"
+        f"{prices_block}\n\n"
+        "Натисніть «Вибрати обʼєм» ✅"
     )
 
-    try_send_photo(chat_id, item.get("photo_path", ""), caption, kb_product())
+    photo = (item.get("photo") or "").strip()
+    send_local_photo(chat_id, photo, caption, kb_product())
 
 def show_volumes(chat_id: int):
     sel = user_selected.get(chat_id, {})
