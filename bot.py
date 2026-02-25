@@ -1,27 +1,21 @@
 import os
-import re
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-
 import telebot
 from telebot import types
-
 
 # =========================
 # CONFIG
 # =========================
 TOKEN = (os.environ.get("TOKEN") or "").strip()
-ADMIN_CHAT_ID_RAW = (os.environ.get("ADMIN_CHAT_ID") or "").strip()  # пример: -5268865051
+ADMIN_CHAT_ID = (os.environ.get("ADMIN_CHAT_ID") or "").strip()  # пример: -5268865051
 
 if not TOKEN:
     raise RuntimeError("TOKEN env var is not set")
 
-if not ADMIN_CHAT_ID_RAW:
+if not ADMIN_CHAT_ID:
     raise RuntimeError("ADMIN_CHAT_ID env var is not set (example: -5268865051)")
 
-ADMIN_CHAT_ID = int(ADMIN_CHAT_ID_RAW)
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ADMIN_CHAT_ID = int(ADMIN_CHAT_ID)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("eg-bot")
@@ -29,6 +23,8 @@ log = logging.getLogger("eg-bot")
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 ADMIN_LINK = "https://t.me/beautyspace_admin"
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGES_DIR = os.path.join(BASE_DIR, "images")
 
 # =========================
 # UI BUTTONS (UA)
@@ -53,15 +49,11 @@ BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
 BTN_ADD_TO_CART = "Додати в кошик"
 BTN_HOW_TO_USE = "Як правильно використовувати"
 
-BTN_ITEMS = "🧴 Товари лінійки"
-
-
 # =========================
 # HELPERS
 # =========================
 def is_private(message: types.Message) -> bool:
     return message.chat.type == "private"
-
 
 def safe_send_to_admin(text: str) -> bool:
     try:
@@ -76,26 +68,31 @@ def safe_send_to_admin(text: str) -> bool:
         log.exception("Failed to send to admin chat: %s", e)
         return False
 
-
-def safe_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup: types.ReplyKeyboardMarkup) -> None:
+def try_send_photo(chat_id: int, photo_path: str, caption: str, reply_markup):
     """
-    photo_path: относительный путь типа images/xxx.jpg
+    photo_path: относительный путь типа 'images/xxx.jpg' или абсолютный.
+    Пытаемся открыть локальный файл. Если файла нет — отправляем текст.
     """
-    abs_path = os.path.join(BASE_DIR, photo_path)
     try:
+        p = photo_path.strip()
+        if not p:
+            bot.send_message(chat_id, caption, reply_markup=reply_markup)
+            return
+
+        abs_path = p
+        if not os.path.isabs(abs_path):
+            # ожидаем, что в каталоге лежит папка images
+            abs_path = os.path.join(BASE_DIR, p)
+
+        if not os.path.exists(abs_path):
+            bot.send_message(chat_id, caption, reply_markup=reply_markup)
+            return
+
         with open(abs_path, "rb") as f:
             bot.send_photo(chat_id, f, caption=caption, reply_markup=reply_markup)
-    except Exception as e:
-        log.exception("Failed to send photo %s: %s", abs_path, e)
+    except Exception:
+        log.exception("Failed to send photo; fallback to text")
         bot.send_message(chat_id, caption, reply_markup=reply_markup)
-
-
-def chunk_two(items: List[str]) -> List[Tuple[str, ...]]:
-    rows: List[Tuple[str, ...]] = []
-    for i in range(0, len(items), 2):
-        rows.append(tuple(items[i:i + 2]))
-    return rows
-
 
 # =========================
 # KEYBOARDS
@@ -107,7 +104,6 @@ def kb_main():
     m.row(BTN_ADMIN)
     return m
 
-
 def kb_salon():
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
     m.row(BTN_PRICE)
@@ -115,14 +111,12 @@ def kb_salon():
     m.row(BTN_HOME)
     return m
 
-
-def kb_price(services_rows):
+def kb_price(services):
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in services_rows:
+    for row in services:
         m.row(*row)
     m.row(BTN_BACK, BTN_HOME)
     return m
-
 
 def kb_shop():
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -130,39 +124,33 @@ def kb_shop():
     m.row(BTN_BACK, BTN_HOME)
     return m
 
-
-def kb_lines(lines_rows):
+def kb_lines(lines):
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in lines_rows:
+    for row in lines:
         m.row(*row)
     m.row(BTN_BACK, BTN_HOME)
     return m
 
-
-def kb_items(items_rows):
+def kb_items(rows):
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in items_rows:
+    for row in rows:
         m.row(*row)
     m.row(BTN_BACK, BTN_HOME)
     return m
-
 
 def kb_product():
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    m.row(BTN_ITEMS)
     m.row(BTN_CHOOSE_VOLUME)
     m.row(BTN_ADD_TO_CART, BTN_HOW_TO_USE)
     m.row(BTN_BACK, BTN_HOME)
     return m
 
-
-def kb_volumes(volume_rows):
+def kb_volumes(volume_buttons_rows):
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for row in volume_rows:
+    for row in volume_buttons_rows:
         m.row(*row)
     m.row(BTN_BACK, BTN_HOME)
     return m
-
 
 def kb_cart():
     m = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -171,9 +159,8 @@ def kb_cart():
     m.row(BTN_BACK, BTN_HOME)
     return m
 
-
 # =========================
-# SALON SERVICES (твои тексты)
+# SALON SERVICES
 # =========================
 SVC_CAMO = "Камуфляж сивини"
 SVC_TONE = "Тонування"
@@ -230,58 +217,472 @@ PRICE_ROWS = [
     (SVC_RECON,),
 ]
 
-
 # =========================
-# CATALOG
+# CATALOG (Redken)
+# photo_path: путь к локальному файлу, например "images/имя.jpg"
+# btn: текст кнопки в меню товаров
 # =========================
-# ВАЖНО:
-# 1) Вставь сюда свой огромный CATALOG целиком.
-# 2) CATALOG должен быть валидным словарём и полностью закрываться.
-# 3) photo хранится как "images/xxx.jpg"
-#
-# Ниже каркас. Замени на свой.
-CATALOG: Dict[str, Any] = {
+CATALOG = {
     "Redken": {
         "lines": {
-            # сюда вставляется твой реальный контент
+
+            "Acidic Bonding": {
+                "items": {
+                    "acidic_shampoo": {
+                        "btn": "🔹 Шампунь Acidic Bonding",
+                        "title": "Шампунь Redken Acidic Bonding",
+                        "photo_path": "images/redken-acidic-shampoo.jpg",
+                        "short": "Шампунь для відновлення пошкодженого волосся. Зміцнює, зменшує ламкість, допомагає вирівняти pH після фарбування.",
+                        "how_to_use": "Нанести на вологе волосся, спінити, змити. Повторити за потреби.",
+                        "volumes": {
+                            "300 мл — 950 грн": {"ml": 300, "price": 950},
+                            "500 мл — 1250 грн": {"ml": 500, "price": 1250},
+                        }
+                    },
+                    "acidic_conditioner": {
+                        "btn": "🔹 Бальзам Acidic Bonding",
+                        "title": "Бальзам Redken Acidic Bonding",
+                        "photo_path": "images/redken-acidic-conditioner.jpg",
+                        "short": "Бальзам для зміцнення та гладкості. Закриває кутикулу, зменшує сухість і пухнастість довжини.",
+                        "how_to_use": "Нанести на довжину після шампуню, витримати 1–3 хвилини, змити.",
+                        "volumes": {
+                            "300 мл — 950 грн": {"ml": 300, "price": 950},
+                            "500 мл — 1250 грн": {"ml": 500, "price": 1250},
+                        }
+                    },
+                    "acidic_mask": {
+                        "btn": "🔹 Маска Acidic Bonding",
+                        "title": "Маска Redken Acidic Bonding",
+                        "photo_path": "images/redken-acidic-mask.jpg",
+                        "short": "Інтенсивна маска для глибокого відновлення. Підходить волоссю після освітлення та фарбування.",
+                        "how_to_use": "Після шампуню нанести на довжину на 5–10 хвилин, змити. 1–2 рази на тиждень.",
+                        "volumes": {
+                            "250 мл — 1300 грн": {"ml": 250, "price": 1300},
+                        }
+                    },
+                    "acidic_leavein": {
+                        "btn": "🔹 Крем Acidic Bonding (незмивний)",
+                        "title": "Крем Redken Acidic Bonding (незмивний)",
+                        "photo_path": "images/redken-acidic-leavein.jpg",
+                        "short": "Незмивний догляд для захисту та гладкості. Допомагає зменшити пухнастість і ламкість.",
+                        "how_to_use": "Нанести невелику кількість на вологу довжину. Не змивати.",
+                        "volumes": {
+                            "150 мл — 1000 грн": {"ml": 150, "price": 1000},
+                        }
+                    },
+                }
+            },
+
+            "Acidic Color Gloss": {
+                "items": {
+                    "color_shampoo": {
+                        "btn": "🔹 Шампунь Acidic Color Gloss",
+                        "title": "Шампунь Redken Acidic Color Gloss",
+                        "photo_path": "images/redken-color-shampoo.jpg",
+                        "short": "Шампунь для збереження яскравості та блиску фарбованого волосся. Допомагає підтримувати сяяння і гладкість.",
+                        "how_to_use": "Нанести на вологе волосся, спінити, змити.",
+                        "volumes": {"300 мл — 950 грн": {"ml": 300, "price": 950}}
+                    },
+                    "color_conditioner": {
+                        "btn": "🔹 Бальзам Acidic Color Gloss",
+                        "title": "Бальзам Redken Acidic Color Gloss",
+                        "photo_path": "images/redken-color-conditioner.jpg",
+                        "short": "Кондиціонер для блиску та м’якості фарбованого волосся. Полегшує розчісування, зменшує пористість.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 950 грн": {"ml": 300, "price": 950}}
+                    },
+                    "color_fluid": {
+                        "btn": "🔹 Флюїд Acidic Color Gloss",
+                        "title": "Флюїд Redken Acidic Color Gloss",
+                        "photo_path": "images/redken-color-fluid.jpg",
+                        "short": "Незмивний флюїд для блиску та захисту фарбованого волосся. Допомагає зберегти гладкість довжини.",
+                        "how_to_use": "Нанести на вологу або суху довжину. Не змивати.",
+                        "volumes": {"100 мл — 1000 грн": {"ml": 100, "price": 1000}}
+                    },
+                    "color_treatment": {
+                        "btn": "🔹 Інтенсивний догляд Acidic Color Gloss",
+                        "title": "Інтенсивний догляд Redken Acidic Color Gloss (Gloss Treatment)",
+                        "photo_path": "images/redken-color-treatment.jpg",
+                        "short": "Догляд для інтенсивного сяяння та більш «дорогого» вигляду волосся. Підсилює блиск і згладжує довжину.",
+                        "how_to_use": "Після шампуню нанести на довжину на 5–10 хвилин, змити.",
+                        "volumes": {"237 мл — 1400 грн": {"ml": 237, "price": 1400}}
+                    },
+                    "color_thermo": {
+                        "btn": "🔹 Спрей-термозахист Acidic Color Gloss",
+                        "title": "Спрей-термозахист Redken Acidic Color Gloss",
+                        "photo_path": "images/redken-color-thermo.jpg",
+                        "short": "Термозахист для фарбованого волосся з ефектом блиску. Допомагає зберегти гладкість під час укладки.",
+                        "how_to_use": "Розпилити по довжині перед сушінням або укладкою. Не змивати.",
+                        "volumes": {"190 мл — 950 грн": {"ml": 190, "price": 950}}
+                    },
+                }
+            },
+
+            "All Soft": {
+                "items": {
+                    "allsoft_shampoo": {
+                        "btn": "🔹 Шампунь All Soft",
+                        "title": "Шампунь Redken All Soft",
+                        "photo_path": "images/redken-allsoft-shampoo.jpg",
+                        "short": "Шампунь для м’якості та блиску сухого волосся. Допомагає зробити довжину більш шовковистою.",
+                        "how_to_use": "Нанести на вологе волосся, спінити, змити.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                    "allsoft_conditioner": {
+                        "btn": "🔹 Кондиціонер All Soft",
+                        "title": "Кондиціонер Redken All Soft",
+                        "photo_path": "images/redken-allsoft-conditioner.jpg",
+                        "short": "Кондиціонер для м’якості, гладкості та легкого розчісування. Підходить сухій довжині.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                    "allsoft_thermo_cream": {
+                        "btn": "🔹 Термокрем All Soft",
+                        "title": "Термозахист крем Redken All Soft",
+                        "photo_path": "images/redken-allsoft-thermo-cream.jpg",
+                        "short": "Термокрем для м’якості та контролю пухнастості. Допомагає зробити укладку більш гладкою.",
+                        "how_to_use": "Нанести невелику кількість на вологу довжину перед сушінням. Не змивати.",
+                        "volumes": {"150 мл — 950 грн": {"ml": 150, "price": 950}}
+                    },
+                    "allsoft_oil": {
+                        "btn": "🔹 Олійка All Soft",
+                        "title": "Флюїд-олійка Redken All Soft",
+                        "photo_path": "images/redken-allsoft-oil.jpg",
+                        "short": "Олійка-флюїд для блиску та м’якості. Допомагає згладити довжину та зменшити сухість.",
+                        "how_to_use": "1–2 натискання на довжину (вологу або суху). Не наносити на корінь.",
+                        "volumes": {"111 мл — 1000 грн": {"ml": 111, "price": 1000}}
+                    },
+                }
+            },
+
+            "All Soft Mega Curls": {
+                "items": {
+                    "megacurls_shampoo": {
+                        "btn": "🔹 Шампунь Mega Curls",
+                        "title": "Шампунь Redken All Soft Mega Curls",
+                        "photo_path": "images/redken-mega-curls-shampoo.jpg",
+                        "short": "Шампунь для хвилястого та кучерявого волосся. Дає м’якість, еластичність та контроль локона.",
+                        "how_to_use": "Нанести на вологе волосся, спінити, змити.",
+                        "volumes": {"300 мл — 900 грн": {"ml": 300, "price": 900}}
+                    },
+                    "megacurls_conditioner": {
+                        "btn": "🔹 Кондиціонер Mega Curls",
+                        "title": "Кондиціонер Redken All Soft Mega Curls",
+                        "photo_path": "images/redken-mega-curls-conditioner.jpg",
+                        "short": "Кондиціонер для м’якості кучерів без обтяження. Допомагає зменшити пухнастість.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 900 грн": {"ml": 300, "price": 900}}
+                    },
+                }
+            },
+
+            "Blondage": {
+                "items": {
+                    "blondage_shampoo": {
+                        "btn": "🔹 Шампунь Blondage",
+                        "title": "Шампунь Redken Blondage",
+                        "photo_path": "images/redken-blondage-shampoo.jpg",
+                        "short": "Шампунь для догляду за світлим волоссям. Допомагає підтримувати якість блонду та м’якість довжини.",
+                        "how_to_use": "Нанести, спінити, змити. Далі кондиціонер.",
+                        "volumes": {"300 мл — 800 грн": {"ml": 300, "price": 800}}
+                    },
+                    "blondage_conditioner": {
+                        "btn": "🔹 Кондиціонер Blondage",
+                        "title": "Кондиціонер Redken Blondage",
+                        "photo_path": "images/redken-blondage-conditioner.jpg",
+                        "short": "Кондиціонер для м’якості та блиску блонду. Полегшує розчісування, згладжує пористість.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 900 грн": {"ml": 300, "price": 900}}
+                    },
+                    "blondage_purple_shampoo": {
+                        "btn": "🔹 Фіолетовий шампунь Blondage",
+                        "title": "Шампунь Redken Blondage (анти-жовтий, фіолетовий)",
+                        "photo_path": "images/redken-blondage-purple-shampoo.jpg",
+                        "short": "Фіолетовий шампунь проти жовтизни. Нейтралізує теплі відтінки та робить блонд холоднішим.",
+                        "how_to_use": "Нанести, витримати 1–3 хв (за потреби до 5), змити. 1–2 рази на тиждень.",
+                        "volumes": {"300 мл — 900 грн": {"ml": 300, "price": 900}}
+                    },
+                }
+            },
+
+            "Extreme": {
+                "items": {
+                    "extreme_shampoo": {
+                        "btn": "🔹 Шампунь Extreme",
+                        "title": "Шампунь Redken Extreme",
+                        "photo_path": "images/redken-extreme-shampoo.jpg",
+                        "short": "Шампунь для зміцнення пошкодженого волосся. Допомагає зменшити ламкість.",
+                        "how_to_use": "Нанести, спінити, змити.",
+                        "volumes": {
+                            "300 мл — 850 грн": {"ml": 300, "price": 850},
+                            "500 мл — 1100 грн": {"ml": 500, "price": 1100},
+                        }
+                    },
+                    "extreme_conditioner": {
+                        "btn": "🔹 Кондиціонер Extreme",
+                        "title": "Кондиціонер Redken Extreme",
+                        "photo_path": "images/redken-extreme-conditioner.jpg",
+                        "short": "Кондиціонер для легкого розчісування та зменшення ламкості.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {
+                            "300 мл — 850 грн": {"ml": 300, "price": 850},
+                            "500 мл — 1100 грн": {"ml": 500, "price": 1100},
+                        }
+                    },
+                    "extreme_mask": {
+                        "btn": "🔹 Маска Extreme",
+                        "title": "Маска Redken Extreme",
+                        "photo_path": "images/redken-extreme-mask.jpg",
+                        "short": "Маска для більш глибокого відновлення пошкодженої довжини.",
+                        "how_to_use": "Після шампуню на 5–10 хвилин, змити. 1–2 рази на тиждень.",
+                        "volumes": {"250 мл — 1200 грн": {"ml": 250, "price": 1200}}
+                    },
+                    "extreme_thermo": {
+                        "btn": "🔹 Термозахист Extreme (незмивний)",
+                        "title": "Термозахист незмивний Redken Extreme",
+                        "photo_path": "images/redken-extreme-thermo.jpg",
+                        "short": "Незмивний термозахист для довжини. Допомагає зберегти полотно волосся під час сушіння та укладки.",
+                        "how_to_use": "Нанести на довжину перед сушінням/праскою. Не змивати.",
+                        "volumes": {"250 мл — 1000 грн": {"ml": 250, "price": 1000}}
+                    },
+                }
+            },
+
+            "Extreme Length": {
+                "items": {
+                    "extreme_length_shampoo": {
+                        "btn": "🔹 Шампунь Extreme Length",
+                        "title": "Шампунь Redken Extreme Length",
+                        "photo_path": "images/redken-extreme-length-shampoo.jpg",
+                        "short": "Шампунь для зміцнення та росту довжини. Допомагає зменшити ламкість.",
+                        "how_to_use": "Нанести, спінити, змити. Далі кондиціонер.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                    "extreme_length_conditioner": {
+                        "btn": "🔹 Кондиціонер Extreme Length",
+                        "title": "Кондиціонер Redken Extreme Length",
+                        "photo_path": "images/redken-extreme-length-conditioner.jpg",
+                        "short": "Кондиціонер для зміцнення довжини та легкого розчісування.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 900 грн": {"ml": 300, "price": 900}}
+                    },
+                    "extreme_length_mask": {
+                        "btn": "🔹 Маска Extreme Length",
+                        "title": "Маска Redken Extreme Length",
+                        "photo_path": "images/redken-extreme-length-mask.jpg",
+                        "short": "Маска для зміцнення та відновлення довжини. Підходить ламкому волоссю.",
+                        "how_to_use": "Після шампуню на 5–10 хвилин, змити. 1–2 рази на тиждень.",
+                        "volumes": {"250 мл — 1200 грн": {"ml": 250, "price": 1200}}
+                    },
+                    "extreme_length_cream": {
+                        "btn": "🔹 Крем Extreme Length (незмивний)",
+                        "title": "Крем Redken Extreme Length (незмивний)",
+                        "photo_path": "images/redken-extreme-length-cream.jpg",
+                        "short": "Незмивний крем для захисту довжини. Допомагає зменшити ламкість і зробити волосся слухнянішим.",
+                        "how_to_use": "Нанести на вологу або суху довжину. Не змивати.",
+                        "volumes": {"150 мл — 1000 грн": {"ml": 150, "price": 1000}}
+                    },
+                }
+            },
+
+            "Frizz Dismiss": {
+                "items": {
+                    "frizz_shampoo": {
+                        "btn": "🔹 Шампунь Frizz Dismiss",
+                        "title": "Шампунь Redken Frizz Dismiss",
+                        "photo_path": "images/redken-frizz-shampoo.jpg",
+                        "short": "Шампунь проти пухнастості. Допомагає контролювати фриз та робить волосся більш гладким.",
+                        "how_to_use": "Нанести, спінити, змити.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                    "frizz_conditioner": {
+                        "btn": "🔹 Кондиціонер Frizz Dismiss",
+                        "title": "Кондиціонер Redken Frizz Dismiss",
+                        "photo_path": "images/redken-frizz-conditioner.jpg",
+                        "short": "Кондиціонер для гладкості та контролю пухнастості. Полегшує розчісування.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                    "frizz_thermo_cream": {
+                        "btn": "🔹 Термокрем Frizz Dismiss",
+                        "title": "Термозахист крем Redken Frizz Dismiss",
+                        "photo_path": "images/redken-frizz-thermo-cream.jpg",
+                        "short": "Крем-термозахист для гладкості. Допомагає прибрати пухнастість та захищає під час укладки.",
+                        "how_to_use": "Нанести невелику кількість на вологу довжину. Не змивати.",
+                        "volumes": {"250 мл — 1000 грн": {"ml": 250, "price": 1000}}
+                    },
+                    "frizz_oil_serum": {
+                        "btn": "🔹 Олійка-сироватка Frizz Dismiss",
+                        "title": "Олійка-сироватка Redken Frizz Dismiss",
+                        "photo_path": "images/redken-frizz-oil-serum.jpg",
+                        "short": "Олійка для блиску та захисту. Закриває пухнастість і робить довжину більш гладкою.",
+                        "how_to_use": "1–2 натискання на довжину. Не наносити на корінь.",
+                        "volumes": {"125 мл — 1000 грн": {"ml": 125, "price": 1000}}
+                    },
+                }
+            },
+
+            "Volume Injection": {
+                "items": {
+                    "volume_shampoo": {
+                        "btn": "🔹 Шампунь Volume Injection",
+                        "title": "Шампунь Redken Volume Injection",
+                        "photo_path": "images/redken-volume-shampoo.jpg",
+                        "short": "Шампунь для прикореневого об’єму. Піднімає корінь, не обтяжує довжину.",
+                        "how_to_use": "Нанести, спінити, змити.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                    "volume_conditioner": {
+                        "btn": "🔹 Кондиціонер Volume Injection",
+                        "title": "Кондиціонер Redken Volume Injection",
+                        "photo_path": "images/redken-volume-conditioner.jpg",
+                        "short": "Кондиціонер для об’єму без обтяження. Пом’якшує довжину та зберігає легкість.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                }
+            },
+
+            "Amino Mint": {
+                "items": {
+                    "amino_mint_shampoo": {
+                        "btn": "🔹 Шампунь Amino Mint",
+                        "title": "Шампунь Redken Amino Mint",
+                        "photo_path": "images/redken-amino-mint-shampoo.jpg",
+                        "short": "Шампунь для шкіри голови з відчуттям свіжості. Добре очищає, підходить при швидкому забрудненні кореня.",
+                        "how_to_use": "Нанести на шкіру голови, спінити 1–2 хвилини, змити. Довжину промити піною.",
+                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
+                    },
+                }
+            },
+
+            "Acidic Grow Full": {
+                "items": {
+                    "growfull_shampoo": {
+                        "btn": "🔹 Шампунь Acidic Grow Full",
+                        "title": "Шампунь Redken Acidic Grow Full",
+                        "photo_path": "images/redken-growfull-shampoo.jpg",
+                        "short": "Шампунь для зміцнення волосся та підтримки густоти. Допомагає зменшити ламкість.",
+                        "how_to_use": "Нанести, спінити, змити. Далі кондиціонер.",
+                        "volumes": {"300 мл — 950 грн": {"ml": 300, "price": 950}}
+                    },
+                    "growfull_conditioner": {
+                        "btn": "🔹 Кондиціонер Acidic Grow Full",
+                        "title": "Кондиціонер Redken Acidic Grow Full",
+                        "photo_path": "images/redken-growfull-conditioner.jpg",
+                        "short": "Кондиціонер для зміцнення довжини та легкого розчісування.",
+                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+                        "volumes": {"300 мл — 950 грн": {"ml": 300, "price": 950}}
+                    },
+                    "growfull_scalp_serum": {
+                        "btn": "🔹 Сироватка для шкіри голови Grow Full",
+                        "title": "Сироватка для шкіри голови Redken Acidic Grow Full",
+                        "photo_path": "images/redken-growfull-scalp-serum.jpg",
+                        "short": "Сироватка для зміцнення та підтримки густоти. Працює зі шкірою голови, підтримує корінь.",
+                        "how_to_use": "Нанести по проділах на чисту шкіру голови, вмасажувати. Не змивати.",
+                        "volumes": {"100 мл — 1400 грн": {"ml": 100, "price": 1400}}
+                    },
+                    "growfull_thermo_spray": {
+                        "btn": "🔹 Термоспрей Grow Full",
+                        "title": "Термозахист-спрей Redken Acidic Grow Full",
+                        "photo_path": "images/redken-growfull-thermo-spray.jpg",
+                        "short": "Термозахист для укладки, допомагає зробити волосся більш щільним візуально.",
+                        "how_to_use": "Розпилити по довжині перед сушінням/укладкою. Не змивати.",
+                        "volumes": {"190 мл — 950 грн": {"ml": 190, "price": 950}}
+                    },
+                }
+            },
+
+            "Anti-Hair Loss": {
+                "items": {
+                    "anti_hair_loss": {
+                        "btn": "🔹 Redken Anti-Hair Loss",
+                        "title": "Redken Anti-Hair Loss (засіб з амінокислотами)",
+                        "photo_path": "images/redken-anti-hair-loss.jpg",
+                        "short": "Засіб з амінокислотами для запобігання випадінню волосся. Підтримує корінь у період сезонного або стресового випадіння.",
+                        "how_to_use": "Нанести по проділах на чисту шкіру голови, вмасажувати. Не змивати. Використовувати курсом.",
+                        "volumes": {"1 шт — 1700 грн": {"ml": None, "price": 1700}}
+                    },
+                }
+            },
+
+            "Styling": {
+                "items": {
+                    "quick_blowout": {
+                        "btn": "🔹 Quick Blowout (термозахист)",
+                        "title": "Спрей-термозахист Redken Quick Blowout",
+                        "photo_path": "images/redken-quick-blowout.jpg",
+                        "short": "Легкий термозахист для швидкої укладки феном. Дає гладкість і контроль.",
+                        "how_to_use": "Розпилити на вологе волосся перед сушінням. Не змивати.",
+                        "volumes": {"125 мл — 950 грн": {"ml": 125, "price": 950}}
+                    },
+                    "volume_boost": {
+                        "btn": "🔹 Volume Boost (об’єм)",
+                        "title": "Легкий спрей для прикореневого об’єму Redken Volume Boost",
+                        "photo_path": "images/redken-volume-boost.jpg",
+                        "short": "Спрей для прикореневого об’єму. Піднімає корінь та зберігає легкість.",
+                        "how_to_use": "Нанести на корінь на вологе волосся, висушити феном.",
+                        "volumes": {"250 мл — 950 грн": {"ml": 250, "price": 950}}
+                    },
+                    "root_tease": {
+                        "btn": "🔹 Root Tease (начіс)",
+                        "title": "Прикореневий спрей для ефекту начісу Redken Root Tease",
+                        "photo_path": "images/redken-root-tease.jpg",
+                        "short": "Спрей для вираженого об’єму і фіксації в корені. Дає ефект начісу.",
+                        "how_to_use": "Розпилити на корінь, підняти, висушити/зафіксувати укладку.",
+                        "volumes": {"250 мл — 900 грн": {"ml": 250, "price": 900}}
+                    },
+                    "root_lifter": {
+                        "btn": "🔹 Root Lifter (спрей-мус)",
+                        "title": "Спрей-мус середньої фіксації Redken Root Lifter",
+                        "photo_path": "images/redken-root-lifter.jpg",
+                        "short": "Спрей-мус для об’єму з керованою фіксацією без жорсткості.",
+                        "how_to_use": "Нанести на корінь на вологе волосся, висушити феном, піднімаючи корінь.",
+                        "volumes": {"300 мл — 1000 грн": {"ml": 300, "price": 1000}}
+                    },
+                }
+            },
         }
     },
+
     "EG by Gromova": {
-        "lines": {}
+        "lines": {
+            "Система догляду": {"items": {}},
+        }
     }
 }
 
-# Список линий для кнопок. Поменяй под свои линии, которые реально есть в CATALOG["Redken"]["lines"].
+# =========================
+# LINES MENU (Redken)
+# =========================
 REDKEN_LINES_ROWS = [
     ("Acidic Bonding", "Acidic Color Gloss"),
-    ("Extreme", "Extreme Length"),
-    ("Frizz Dismiss", "Blondage"),
-    ("Volume Injection", "Styling"),
+    ("All Soft", "All Soft Mega Curls"),
+    ("Blondage", "Extreme"),
+    ("Extreme Length", "Frizz Dismiss"),
+    ("Volume Injection", "Amino Mint"),
+    ("Acidic Grow Full", "Anti-Hair Loss"),
+    ("Styling",),
 ]
 
+# =========================
+# STATE
+# =========================
+user_nav = {}        # chat_id -> stack
+user_selected = {}   # chat_id -> {"brand","line","item_key","volume_btn"}
+user_cart = {}       # chat_id -> list of items
+user_checkout = {}       # chat_id -> dict
+user_checkout_step = {}  # chat_id -> int
 
-# =========================
-# STATE (per user)
-# =========================
 SCR_MAIN = "main"
 SCR_SALON = "salon"
 SCR_PRICE = "price"
 SCR_SHOP = "shop"
 SCR_BRAND_REDKEN = "brand_redken"
-SCR_BRAND_EG = "brand_eg"
-SCR_LINE = "line"
 SCR_ITEMS = "items"
 SCR_ITEM = "item"
 SCR_VOLUMES = "volumes"
 SCR_CART = "cart"
-SCR_CHECKOUT = "checkout"
-
-user_nav: Dict[int, List[str]] = {}          # chat_id -> stack of screens
-user_selected: Dict[int, Dict[str, Any]] = {} # chat_id -> brand/line/item_key/volume_btn
-user_cart: Dict[int, List[Dict[str, Any]]] = {}  # chat_id -> list of items
-
-user_checkout: Dict[int, Dict[str, str]] = {}
-user_checkout_step: Dict[int, int] = {}
 
 CHECKOUT_FIELDS = [
     ("first_name", "Вкажіть ваше ім’я 👇"),
@@ -292,160 +693,113 @@ CHECKOUT_FIELDS = [
     ("np_number", "Вкажіть номер відділення або поштомату 👇"),
 ]
 
-
-def nav_init(chat_id: int) -> None:
+def nav_init(chat_id: int):
     user_nav.setdefault(chat_id, [SCR_MAIN])
     user_selected.setdefault(chat_id, {})
     user_cart.setdefault(chat_id, [])
 
-
-def nav_go(chat_id: int, screen: str) -> None:
+def nav_go(chat_id: int, screen: str):
     nav_init(chat_id)
     user_nav[chat_id].append(screen)
 
-
-def nav_back(chat_id: int) -> None:
+def nav_back(chat_id: int):
     nav_init(chat_id)
     if len(user_nav[chat_id]) > 1:
         user_nav[chat_id].pop()
-
 
 def nav_current(chat_id: int) -> str:
     nav_init(chat_id)
     return user_nav[chat_id][-1]
 
-
-# =========================
-# DATA ACCESS
-# =========================
-def get_lines(brand: str) -> Dict[str, Any]:
-    return (CATALOG.get(brand) or {}).get("lines") or {}
-
-
-def get_items(brand: str, line: str) -> Dict[str, Any]:
-    return (((CATALOG.get(brand) or {}).get("lines") or {}).get(line) or {}).get("items") or {}
-
-
-def get_item(brand: str, line: str, item_key: str) -> Dict[str, Any]:
-    return get_items(brand, line).get(item_key) or {}
-
-
-def current_item_context(chat_id: int) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    sel = user_selected.get(chat_id, {})
-    return sel.get("brand"), sel.get("line"), sel.get("item_key")
-
-
-def current_volume_buttons(chat_id: int) -> List[str]:
-    brand, line, item_key = current_item_context(chat_id)
-    if not (brand and line and item_key):
-        return []
-    item = get_item(brand, line, item_key)
-    volumes = item.get("volumes") or {}
-    return list(volumes.keys())
-
-
 # =========================
 # RENDER
 # =========================
-def show_main(chat_id: int) -> None:
+def show_main(chat_id: int):
     bot.send_message(chat_id, "Вітаємо 💛\nОберіть розділ нижче:", reply_markup=kb_main())
 
-
-def show_salon(chat_id: int) -> None:
+def show_salon(chat_id: int):
     bot.send_message(chat_id, "Розділ: Салон ✂️\nОберіть, що потрібно:", reply_markup=kb_salon())
 
-
-def show_price(chat_id: int) -> None:
+def show_price(chat_id: int):
     bot.send_message(chat_id, "Прайс салону 💰\nОберіть послугу:", reply_markup=kb_price(PRICE_ROWS))
 
-
-def show_shop(chat_id: int) -> None:
+def show_shop(chat_id: int):
     bot.send_message(chat_id, "Магазин косметики 🛍️\nОберіть бренд:", reply_markup=kb_shop())
 
+def show_redken_lines(chat_id: int):
+    bot.send_message(chat_id, "Redken 🧴\nОберіть лінійку:", reply_markup=kb_lines(REDKEN_LINES_ROWS))
 
-def show_redken_lines(chat_id: int) -> None:
-    # Подстраховка: показываем только линии, которые реально есть в CATALOG
-    real_lines = set(get_lines("Redken").keys())
-    rows: List[Tuple[str, ...]] = []
-    for row in REDKEN_LINES_ROWS:
-        filtered = tuple([x for x in row if x in real_lines])
-        if filtered:
-            rows.append(filtered)
-    if not rows:
-        bot.send_message(chat_id, "Redken 🧴\nЛінійки зараз не додані.", reply_markup=kb_shop())
-        return
-    bot.send_message(chat_id, "Redken 🧴\nОберіть лінійку:", reply_markup=kb_lines(rows))
-
-
-def show_cart(chat_id: int) -> None:
+def show_cart(chat_id: int):
     bot.send_message(chat_id, "Кошик 🧺\nОберіть дію:", reply_markup=kb_cart())
 
-
-def show_items_in_line(chat_id: int) -> None:
+def show_line_items(chat_id: int):
     sel = user_selected.get(chat_id, {})
     brand = sel.get("brand")
     line = sel.get("line")
-    if not (brand and line):
-        show_shop(chat_id)
+    if not brand or not line:
+        show_redken_lines(chat_id)
         return
 
-    items = get_items(brand, line)
+    items = CATALOG[brand]["lines"][line]["items"]
     if not items:
-        bot.send_message(chat_id, "У цій лінійці товари ще не додані ✅", reply_markup=kb_lines(REDKEN_LINES_ROWS))
+        bot.send_message(chat_id, "У цій лінійці поки немає товарів ✅", reply_markup=kb_lines(REDKEN_LINES_ROWS))
         return
 
-    # Кнопками показываем названия товаров (title). Внутри — маппинг title -> item_key
-    title_to_key: Dict[str, str] = {}
-    titles: List[str] = []
-    for k, it in items.items():
-        t = (it.get("title") or "").strip()
-        if not t:
-            continue
-        titles.append(t)
-        title_to_key[t] = k
+    btns = []
+    for k, item in items.items():
+        btns.append(item.get("btn") or item.get("title") or k)
 
-    # сохраняем маппинг в состояние
-    user_selected[chat_id]["title_to_key"] = title_to_key
+    rows = []
+    for i in range(0, len(btns), 2):
+        rows.append(tuple(btns[i:i+2]))
 
-    titles_sorted = sorted(titles)
-    rows = chunk_two(titles_sorted)
-    bot.send_message(chat_id, f"{brand} 🧴\nЛінійка: <b>{line}</b>\nОберіть товар:", reply_markup=kb_items(rows))
+    bot.send_message(chat_id, f"{line} 🧴\nОберіть товар:", reply_markup=kb_items(rows))
 
-
-def show_item(chat_id: int) -> None:
-    brand, line, item_key = current_item_context(chat_id)
-    if not (brand and line and item_key):
-        show_shop(chat_id)
+def show_item(chat_id: int):
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+    if not brand or not line or not item_key:
+        show_redken_lines(chat_id)
         return
 
-    item = get_item(brand, line, item_key)
-    title = item.get("title") or ""
-    short = item.get("short") or ""
-    caption = f"<b>{title}</b>\n\n{short}\n\nНатисніть «Вибрати обʼєм»."
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
 
-    photo = (item.get("photo") or "").strip()
-    if photo:
-        safe_send_photo(chat_id, photo, caption, kb_product())
+    caption = (
+        f"<b>{item['title']}</b>\n\n"
+        f"{item['short']}\n\n"
+        f"Натисніть «{BTN_CHOOSE_VOLUME}»."
+    )
+
+    try_send_photo(chat_id, item.get("photo_path", ""), caption, kb_product())
+
+def show_volumes(chat_id: int):
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+    if not brand or not line or not item_key:
+        show_redken_lines(chat_id)
         return
 
-    bot.send_message(chat_id, caption, reply_markup=kb_product())
-
-
-def show_volumes(chat_id: int) -> None:
-    buttons = current_volume_buttons(chat_id)
-    if not buttons:
-        bot.send_message(chat_id, "Обʼєми зараз не додані ✅", reply_markup=kb_product())
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    volume_buttons = list(item.get("volumes", {}).keys())
+    if not volume_buttons:
+        bot.send_message(chat_id, "Для цього товару не задані об’єми ❌", reply_markup=kb_product())
         return
 
-    rows = chunk_two(buttons)
+    rows = []
+    for i in range(0, len(volume_buttons), 2):
+        rows.append(tuple(volume_buttons[i:i+2]))
+
     bot.send_message(chat_id, "Оберіть обʼєм:", reply_markup=kb_volumes(rows))
-
 
 # =========================
 # COMMANDS
 # =========================
 @bot.message_handler(commands=["start"])
-def cmd_start(message: types.Message):
+def cmd_start(message):
     if not is_private(message):
         return
     chat_id = message.chat.id
@@ -454,28 +808,24 @@ def cmd_start(message: types.Message):
     user_selected[chat_id] = {}
     show_main(chat_id)
 
-
 @bot.message_handler(commands=["id"])
-def cmd_id(message: types.Message):
+def cmd_id(message):
     chat_id = message.chat.id
     user_id = message.from_user.id if message.from_user else None
     bot.send_message(chat_id, f"chat_id: {chat_id}\nuser_id: {user_id}", reply_markup=types.ReplyKeyboardRemove())
-
 
 # =========================
 # GLOBAL NAV
 # =========================
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_HOME)
-def handle_home(message: types.Message):
+def handle_home(message):
     chat_id = message.chat.id
     nav_init(chat_id)
     user_nav[chat_id] = [SCR_MAIN]
-    user_selected[chat_id] = {}
     show_main(chat_id)
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_BACK)
-def handle_back(message: types.Message):
+def handle_back(message):
     chat_id = message.chat.id
     nav_back(chat_id)
     cur = nav_current(chat_id)
@@ -495,16 +845,10 @@ def handle_back(message: types.Message):
     if cur == SCR_BRAND_REDKEN:
         show_redken_lines(chat_id)
         return
-    if cur == SCR_LINE:
-        show_redken_lines(chat_id)
-        return
     if cur == SCR_ITEMS:
-        show_items_in_line(chat_id)
+        show_line_items(chat_id)
         return
     if cur == SCR_ITEM:
-        show_items_in_line(chat_id)
-        return
-    if cur == SCR_VOLUMES:
         show_item(chat_id)
         return
     if cur == SCR_CART:
@@ -513,199 +857,199 @@ def handle_back(message: types.Message):
 
     show_main(chat_id)
 
-
 # =========================
 # MAIN MENU
 # =========================
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_SALON)
-def open_salon(message: types.Message):
+def open_salon(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_SALON)
     show_salon(chat_id)
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_SHOP)
-def open_shop(message: types.Message):
+def open_shop(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_SHOP)
     show_shop(chat_id)
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_ADMIN)
-def contact_admin(message: types.Message):
+def contact_admin(message):
     chat_id = message.chat.id
     bot.send_message(chat_id, f"Напишіть адміністратору 👇\n{ADMIN_LINK}", reply_markup=kb_main())
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CART)
-def open_cart(message: types.Message):
+def open_cart(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_CART)
     show_cart(chat_id)
-
 
 # =========================
 # SALON
 # =========================
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_PRICE)
-def open_price(message: types.Message):
+def open_price(message):
     chat_id = message.chat.id
     nav_go(chat_id, SCR_PRICE)
     show_price(chat_id)
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text in SERVICE_TEXTS)
-def show_service(message: types.Message):
+def show_service(message):
     chat_id = message.chat.id
     bot.send_message(chat_id, SERVICE_TEXTS[message.text], reply_markup=kb_price(PRICE_ROWS))
-
 
 # =========================
 # SHOP
 # =========================
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_REDKEN)
-def open_redken(message: types.Message):
+def open_redken(message):
     chat_id = message.chat.id
     user_selected[chat_id] = {"brand": "Redken"}
     nav_go(chat_id, SCR_BRAND_REDKEN)
     show_redken_lines(chat_id)
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_EG)
-def open_eg(message: types.Message):
+def open_eg(message):
     chat_id = message.chat.id
     bot.send_message(chat_id, "EG by Gromova (товари додамо наступним блоком) 💛", reply_markup=kb_shop())
-
 
 # =========================
 # REDKEN LINES
 # =========================
-@bot.message_handler(func=lambda m: is_private(m) and (m.text in get_lines("Redken").keys()))
-def redken_line(message: types.Message):
+@bot.message_handler(func=lambda m: is_private(m) and m.text in CATALOG["Redken"]["lines"].keys())
+def redken_line(message):
     chat_id = message.chat.id
     line = message.text
 
-    items = get_items("Redken", line)
-    if not items:
-        bot.send_message(chat_id, "Цю лінійку додамо наступною ✅", reply_markup=kb_lines(REDKEN_LINES_ROWS))
-        return
-
-    user_selected[chat_id] = {"brand": "Redken", "line": line}
-    nav_go(chat_id, SCR_LINE)
+    user_selected[chat_id] = {"brand": "Redken", "line": line, "item_key": None, "volume_btn": None}
     nav_go(chat_id, SCR_ITEMS)
-    show_items_in_line(chat_id)
-
+    show_line_items(chat_id)
 
 # =========================
-# ITEMS IN LINE (by title)
+# ITEM SELECT (buttons by item['btn'])
 # =========================
-@bot.message_handler(func=lambda m: is_private(m) and m.text and (m.text in (user_selected.get(m.chat.id, {}).get("title_to_key") or {})))
-def pick_item_from_line(message: types.Message):
+@bot.message_handler(func=lambda m: is_private(m))
+def handle_item_buttons(message):
     chat_id = message.chat.id
-    title = message.text
+    txt = (message.text or "").strip()
 
-    mapping = user_selected.get(chat_id, {}).get("title_to_key") or {}
-    item_key = mapping.get(title)
-    if not item_key:
-        bot.send_message(chat_id, "Товар не знайдено ✅", reply_markup=kb_main())
+    # сначала — быстрые выходы по кнопкам меню уже обработаны выше другими хендлерами
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+
+    if brand != "Redken" or not line:
         return
 
-    user_selected[chat_id]["item_key"] = item_key
-    user_selected[chat_id].pop("volume_btn", None)
-    nav_go(chat_id, SCR_ITEM)
-    show_item(chat_id)
+    items = CATALOG["Redken"]["lines"][line]["items"]
+    btn_to_key = {}
+    for k, item in items.items():
+        b = (item.get("btn") or "").strip()
+        if b:
+            btn_to_key[b] = k
 
+    if txt in btn_to_key:
+        sel["item_key"] = btn_to_key[txt]
+        sel["volume_btn"] = None
+        user_selected[chat_id] = sel
+        nav_go(chat_id, SCR_ITEM)
+        show_item(chat_id)
+        return
 
 # =========================
 # PRODUCT ACTIONS
 # =========================
-@bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_ITEMS)
-def open_items_btn(message: types.Message):
-    chat_id = message.chat.id
-    nav_go(chat_id, SCR_ITEMS)
-    show_items_in_line(chat_id)
-
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CHOOSE_VOLUME)
-def choose_volume(message: types.Message):
+def choose_volume(message):
     chat_id = message.chat.id
-    brand, line, item_key = current_item_context(chat_id)
-    if not (brand and line and item_key):
+    sel = user_selected.get(chat_id, {})
+    ok = sel.get("brand") and sel.get("line") and sel.get("item_key")
+    if not ok:
         show_shop(chat_id)
         return
     nav_go(chat_id, SCR_VOLUMES)
     show_volumes(chat_id)
 
-
-@bot.message_handler(func=lambda m: is_private(m) and m.text and (m.text in current_volume_buttons(m.chat.id)))
-def pick_volume(message: types.Message):
+@bot.message_handler(func=lambda m: is_private(m))
+def select_volume(message):
     chat_id = message.chat.id
-    user_selected.setdefault(chat_id, {})
-    user_selected[chat_id]["volume_btn"] = message.text
+    txt = (message.text or "").strip()
 
-    bot.send_message(
-        chat_id,
-        f"Обʼєм обрано ✅\n{message.text}\nТепер натисніть «{BTN_ADD_TO_CART}».",
-        reply_markup=kb_product()
-    )
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
 
+    if not brand or not line or not item_key:
+        return
+
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    volumes = item.get("volumes", {})
+
+    if txt in volumes:
+        sel["volume_btn"] = txt
+        v = volumes[txt]
+        bot.send_message(
+            chat_id,
+            f"Обрано: {v.get('ml','')} мл — {v.get('price','')} грн ✅\nТепер натисніть «{BTN_ADD_TO_CART}».",
+            reply_markup=kb_product()
+        )
+        # вернёмся назад с volumes на item
+        if nav_current(chat_id) == SCR_VOLUMES:
+            nav_back(chat_id)
+        return
 
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_HOW_TO_USE)
-def how_to_use(message: types.Message):
+def how_to_use(message):
     chat_id = message.chat.id
-    brand, line, item_key = current_item_context(chat_id)
-    if not (brand and line and item_key):
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+
+    if not brand or not line or not item_key:
         show_shop(chat_id)
         return
 
-    item = get_item(brand, line, item_key)
-    text = (item.get("how_to_use") or "").strip()
-    if not text:
-        text = "Інструкцію додамо наступним блоком ✅"
-    bot.send_message(chat_id, text, reply_markup=kb_product())
-
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    bot.send_message(chat_id, item["how_to_use"], reply_markup=kb_product())
 
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_ADD_TO_CART)
-def add_to_cart(message: types.Message):
+def add_to_cart(message):
     chat_id = message.chat.id
-    brand, line, item_key = current_item_context(chat_id)
-    volume_btn = (user_selected.get(chat_id, {}) or {}).get("volume_btn")
+    sel = user_selected.get(chat_id, {})
+    brand = sel.get("brand")
+    line = sel.get("line")
+    item_key = sel.get("item_key")
+    volume_btn = sel.get("volume_btn")
 
-    if not (brand and line and item_key):
+    if not brand or not line or not item_key:
         show_shop(chat_id)
         return
 
     if not volume_btn:
-        bot.send_message(chat_id, "Спочатку натисніть «Вибрати обʼєм» ✅", reply_markup=kb_product())
+        bot.send_message(chat_id, f"Спочатку натисніть «{BTN_CHOOSE_VOLUME}» ✅", reply_markup=kb_product())
         return
 
-    item = get_item(brand, line, item_key)
-    volumes = item.get("volumes") or {}
-    v = volumes.get(volume_btn)
+    item = CATALOG[brand]["lines"][line]["items"][item_key]
+    v = item["volumes"][volume_btn]
 
-    if not v:
-        bot.send_message(chat_id, "Обʼєм не знайдено ✅", reply_markup=kb_product())
-        return
-
-    user_cart.setdefault(chat_id, [])
     user_cart[chat_id].append({
-        "title": item.get("title") or "",
+        "title": item["title"],
         "ml": v.get("ml"),
-        "price": int(v.get("price") or 0)
+        "price": v.get("price")
     })
 
     bot.send_message(
         chat_id,
-        f"Додано в кошик ✅\n{item.get('title','')} — {v.get('ml')} мл — {v.get('price')} грн\n\nВідкрийте кошик кнопкою «{BTN_CART}».",
+        f"Додано в кошик ✅\n{item['title']} — {v.get('ml','')} мл — {v.get('price','')} грн\n\nВідкрийте кошик кнопкою «{BTN_CART}».",
         reply_markup=kb_product()
     )
-
 
 # =========================
 # CART
 # =========================
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CART_SHOW)
-def cart_show(message: types.Message):
+def cart_show(message):
     chat_id = message.chat.id
     items = user_cart.get(chat_id, [])
 
@@ -713,26 +1057,24 @@ def cart_show(message: types.Message):
         bot.send_message(chat_id, "Кошик порожній 🫶", reply_markup=kb_cart())
         return
 
-    total = sum(int(i.get("price") or 0) for i in items)
+    total = sum(int(i["price"]) for i in items if i.get("price") is not None)
     lines = []
     for idx, i in enumerate(items, 1):
-        lines.append(f"{idx}) {i.get('title','')} — {i.get('ml')} мл — {i.get('price')} грн")
+        lines.append(f"{idx}) {i['title']} — {i.get('ml','')} мл — {i.get('price','')} грн")
 
     text = "Ваш кошик 🧺\n\n" + "\n".join(lines) + f"\n\nРазом: {total} грн"
     bot.send_message(chat_id, text, reply_markup=kb_cart())
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CART_CLEAR)
-def cart_clear(message: types.Message):
+def cart_clear(message):
     chat_id = message.chat.id
     user_cart[chat_id] = []
     bot.send_message(chat_id, "Кошик очищено ✅", reply_markup=kb_cart())
 
-
 # =========================
 # CHECKOUT
 # =========================
-def ask_next_field(chat_id: int) -> None:
+def ask_next_field(chat_id: int):
     step = user_checkout_step.get(chat_id, 0)
 
     if step >= len(CHECKOUT_FIELDS):
@@ -742,9 +1084,8 @@ def ask_next_field(chat_id: int) -> None:
     _, question = CHECKOUT_FIELDS[step]
     bot.send_message(chat_id, question)
 
-
 @bot.message_handler(func=lambda m: is_private(m) and m.text == BTN_CHECKOUT)
-def start_checkout(message: types.Message):
+def start_checkout(message):
     chat_id = message.chat.id
     items = user_cart.get(chat_id, [])
 
@@ -754,7 +1095,6 @@ def start_checkout(message: types.Message):
 
     user_checkout[chat_id] = {}
     user_checkout_step[chat_id] = 0
-    nav_go(chat_id, SCR_CHECKOUT)
 
     bot.send_message(
         chat_id,
@@ -763,31 +1103,21 @@ def start_checkout(message: types.Message):
     )
     ask_next_field(chat_id)
 
-
-PHONE_RE = re.compile(r"^\+\d{10,15}$")
-
-
-@bot.message_handler(func=lambda m: is_private(m) and (m.chat.id in user_checkout_step))
-def collect_checkout(message: types.Message):
+@bot.message_handler(func=lambda m: is_private(m) and m.chat.id in user_checkout_step)
+def collect_checkout(message):
     chat_id = message.chat.id
-    step = user_checkout_step.get(chat_id)
+    step = user_checkout_step.get(chat_id, 0)
 
-    if step is None:
-        return
     if step >= len(CHECKOUT_FIELDS):
         return
 
-    value = (message.text or "").strip()
-    if not value:
-        bot.send_message(chat_id, "Напишіть текстом 👇")
-        return
-
     key, _ = CHECKOUT_FIELDS[step]
+    value = (message.text or "").strip()
 
     if key == "phone":
         cleaned = value.replace(" ", "").replace("-", "")
-        ok = bool(PHONE_RE.match(cleaned))
-        if not ok:
+        good = cleaned.startswith("+") and len(cleaned) >= 10
+        if not good:
             bot.send_message(chat_id, "Номер введено некоректно ❌\nПриклад: +380XXXXXXXXX")
             return
         value = cleaned
@@ -796,15 +1126,15 @@ def collect_checkout(message: types.Message):
     user_checkout_step[chat_id] = step + 1
     ask_next_field(chat_id)
 
-
-def send_order_to_admin(chat_id: int) -> None:
+def send_order_to_admin(chat_id: int):
     items = user_cart.get(chat_id, [])
     data = user_checkout.get(chat_id, {})
 
-    total = sum(int(i.get("price") or 0) for i in items)
+    total = sum(int(i["price"]) for i in items if i.get("price") is not None)
+
     lines = []
     for idx, i in enumerate(items, 1):
-        lines.append(f"{idx}) {i.get('title','')} — {i.get('ml')} мл — {i.get('price')} грн")
+        lines.append(f"{idx}) {i['title']} — {i.get('ml','')} мл — {i.get('price','')} грн")
     items_text = "\n".join(lines)
 
     text = (
@@ -825,38 +1155,21 @@ def send_order_to_admin(chat_id: int) -> None:
     else:
         bot.send_message(chat_id, "Помилка відправки адміністратору ❌\nАдміністратор: " + ADMIN_LINK, reply_markup=kb_main())
 
-    # очистка
     user_cart[chat_id] = []
     user_checkout.pop(chat_id, None)
     user_checkout_step.pop(chat_id, None)
-    # навигацию возвращаем в начало
-    user_nav[chat_id] = [SCR_MAIN]
-    user_selected[chat_id] = {}
-
 
 # =========================
-# FALLBACK (последним)
-# В группах молчим
+# FALLBACK (LAST)
 # =========================
 @bot.message_handler(func=lambda m: True)
-def fallback(message: types.Message):
+def fallback(message):
     if not is_private(message):
         return
     bot.send_message(message.chat.id, "Я вас зрозуміла ✅\nОберіть кнопку в меню нижче.", reply_markup=kb_main())
 
-
 # =========================
 # RUN
 # =========================
-def main():
-    log.info("Starting bot...")
-    try:
-        bot.remove_webhook()
-    except Exception as e:
-        log.warning("remove_webhook warning: %s", e)
-
-    bot.infinity_polling(skip_pending=True, timeout=30, long_polling_timeout=30)
-
-
-if __name__ == "__main__":
-    main()
+bot.remove_webhook()
+bot.infinity_polling(skip_pending=True)
