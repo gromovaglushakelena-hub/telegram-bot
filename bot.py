@@ -999,23 +999,58 @@ CATALOG = {
 },
 
             "Extreme Length": {
-                "items": {
-                    "extreme_length_shampoo": {
-                        "btn": "🔹 Шампунь Extreme Length",
-                        "title": "Шампунь Redken Extreme Length",
-                        "photo_path": "images/redken-extreme-length-shampoo.jpg",
-                        "short": "Шампунь для зміцнення та росту довжини. Допомагає зменшити ламкість.",
-                        "how_to_use": "Нанести, спінити, змити. Далі кондиціонер.",
-                        "volumes": {"300 мл — 850 грн": {"ml": 300, "price": 850}}
-                    },
-                    "extreme_length_conditioner": {
-                        "btn": "🔹 Кондиціонер Extreme Length",
-                        "title": "Кондиціонер Redken Extreme Length",
-                        "photo_path": "images/redken-extreme-length-conditioner.jpg",
-                        "short": "Кондиціонер для зміцнення довжини та легкого розчісування.",
-                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
-                        "volumes": {"300 мл — 900 грн": {"ml": 300, "price": 900}}
-                    },
+    "items": {
+
+        "extreme_length_shampoo": {
+            "btn": "🔹 Шампунь Extreme Length",
+            "title": "Шампунь Redken Extreme Length",
+            "photo_path": "images/redken-extreme-length-shampoo-300ml.jpg",
+            "short": (
+                "Шампунь для зміцнення волосся та підтримки росту довжини.\n\n"
+                "Формула з біотином допомагає зменшити ламкість волосся, "
+                "зміцнює полотно волосся та допомагає відростити більш здорову довжину.\n\n"
+                "Ефект:\n"
+                "• делікатно очищає волосся\n"
+                "• зміцнює довжину\n"
+                "• зменшує ламкість\n"
+                "• допомагає відростити довше та сильніше волосся"
+            ),
+            "how_to_use": (
+                "Як використовувати:\n"
+                "1. Нанести на добре вологе волосся.\n"
+                "2. Спінити масажними рухами.\n"
+                "3. Ретельно змити.\n\n"
+                "Після використати кондиціонер або маску."
+            ),
+            "volumes": {
+                "300 мл — 850 грн": {"ml": 300, "price": 850}
+            }
+        },
+
+        "extreme_length_conditioner": {
+            "btn": "🔹 Кондиціонер Extreme Length",
+            "title": "Кондиціонер Redken Extreme Length",
+            "photo_path": "images/redken-extreme-length-conditioner-300ml.jpg",
+            "short": (
+                "Кондиціонер для зміцнення довжини та зменшення ламкості волосся.\n\n"
+                "Полегшує розчісування, робить волосся більш гладким та допомагає "
+                "зберегти довжину волосся під час відрощування.\n\n"
+                "Ефект:\n"
+                "• зміцнює волосся\n"
+                "• зменшує ламкість\n"
+                "• полегшує розчісування\n"
+                "• додає гладкість та блиск"
+            ),
+            "how_to_use": (
+                "Як використовувати:\n"
+                "1. Нанести після шампуню на довжину волосся.\n"
+                "2. Залишити на 1–3 хвилини.\n"
+                "3. Ретельно змити водою."
+            ),
+            "volumes": {
+                "300 мл — 900 грн": {"ml": 300, "price": 900}
+            }
+        }
                     "extreme_length_mask": {
                         "btn": "🔹 Маска Extreme Length",
                         "title": "Маска Redken Extreme Length",
