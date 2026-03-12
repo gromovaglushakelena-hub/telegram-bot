@@ -903,7 +903,7 @@ CATALOG = {
 
     }
 },
-            "Extreme": {
+          "Extreme": {
     "items": {
 
         "extreme_shampoo": {
@@ -937,17 +937,17 @@ CATALOG = {
             }
         }
                     "extreme_conditioner": {
-                        "btn": "🔹 Кондиціонер Extreme",
-                        "title": "Кондиціонер Redken Extreme",
-                        "photo_path": "images/redken-extreme-conditioner.jpg",
-                        "short": "Кондиціонер для легкого розчісування та зменшення ламкості.",
-                        "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
-                        "volumes": {
-                            "300 мл — 850 грн": {"ml": 300, "price": 850},
-                            "500 мл — 1100 грн": {"ml": 500, "price": 1100},
-                        }
-                    },
-                    "extreme_mask": {
+    "btn": "🔹 Кондиціонер Extreme",
+    "title": "Кондиціонер Redken Extreme",
+    "photo_path": "images/redken-extreme-conditioner-300ml.jpg",
+    "short": "Кондиціонер для легкого розчісування та зменшення ламкості.",
+    "how_to_use": "Нанести на довжину на 1–3 хвилини, змити.",
+    "volumes": {
+        "300 мл — 850 грн": {"ml": 300, "price": 850},
+        "500 мл — 1100 грн": {"ml": 500, "price": 1100}
+    }
+},                    
+        "extreme_mask": {
                         "btn": "🔹 Маска Extreme",
                         "title": "Маска Redken Extreme",
                         "photo_path": "images/redken-extreme-mask.jpg",
