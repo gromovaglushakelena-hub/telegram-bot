@@ -1547,10 +1547,8 @@ REDKEN_LINES_ROWS = [
     ("Blondage", "Extreme"),
     ("Extreme Length", "Frizz Dismiss"),
     ("Volume Injection", "Amino Mint"),
-    ("Acidic Grow Full", "Anti-Hair Loss"),
-    ("Styling",),
+    ("Acidic Grow Full", "Styling"),
 ]
-
 # =========================
 # STATE
 # =========================
