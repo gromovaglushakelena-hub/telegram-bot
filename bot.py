@@ -1511,7 +1511,6 @@ def fallback(message):
 # =========================
 # RUN
 # =========================
-mport time
 
 bot.remove_webhook()
 
