@@ -1511,5 +1511,18 @@ def fallback(message):
 # =========================
 # RUN
 # =========================
+mport time
+
 bot.remove_webhook()
-bot.infinity_polling(skip_pending=True)
+
+while True:
+    try:
+        print("Bot started")
+        bot.infinity_polling(
+            timeout=60,
+            long_polling_timeout=60,
+            skip_pending=True
+        )
+    except Exception as e:
+        print("Bot crashed:", e)
+        time.sleep(5)
