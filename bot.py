@@ -1096,7 +1096,7 @@ def show_item(chat_id: int):
     )
 
     photo_path = item.get("photo_path", "").strip()
-try_send_photo(chat_id, photo_path, caption, kb_product())
+    try_send_photo(chat_id, photo_path, caption, kb_product())
 
 def show_volumes(chat_id: int):
     sel = user_selected.get(chat_id, {})
