@@ -50,17 +50,6 @@ BTN_CHOOSE_VOLUME = "Вибрати обʼєм"
 BTN_ADD_TO_CART = "Додати в кошик"
 BTN_HOW_TO_USE = "Як правильно використовувати"
 
-def get_photo_file(photo_rel_path: str):
-    """
-    photo_rel_path — путь ВНУТРИ папки images, например:
-    "redken/redken-all-soft-shampoo-300ml.jpg"
-    """
-    try:
-        full_path = os.path.join(IMAGES_DIR, photo_rel_path)
-        return open(full_path, "rb")
-    except Exception as e:
-        log.exception("Photo not found/open error: %s (%s)", photo_rel_path, e)
-        return None
 # =========================
 # HELPERS
 # =========================
