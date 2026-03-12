@@ -1095,13 +1095,8 @@ def show_item(chat_id: int):
         "Натисніть «Вибрати обʼєм»."
     )
 
-    photo = item.get("photo", "").strip()
-
-    if photo and os.path.exists(photo):
-        with open(photo, "rb") as f:
-            bot.send_photo(chat_id, f, caption=caption, reply_markup=kb_product())
-    else:
-        bot.send_message(chat_id, caption, reply_markup=kb_product())
+    photo_path = item.get("photo_path", "").strip()
+try_send_photo(chat_id, photo_path, caption, kb_product())
 
 def show_volumes(chat_id: int):
     sel = user_selected.get(chat_id, {})
