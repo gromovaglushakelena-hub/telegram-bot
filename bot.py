@@ -362,7 +362,7 @@ CATALOG = {
         "acidic_shampoo": {
             "btn": "🔹 Шампунь Acidic Bonding",
             "title": "Шампунь Redken Acidic Bonding",
-            "photo_path": "images/redken-acidic-shampoo-300ml.jpg",
+            "photo_path": "images/redken/redken-acidic-shampoo-300ml.jpg",
             "short": (
                 "Відновлюючий шампунь для пошкодженого волосся.\n\n"
                 "Підходить після освітлення, порошку, частого фарбування, термовпливу.\n\n"
@@ -391,7 +391,7 @@ CATALOG = {
         "acidic_conditioner": {
             "btn": "🔹 Бальзам Acidic Bonding",
             "title": "Бальзам Redken Acidic Bonding",
-            "photo_path": "images/redken-acidic-conditioner-300ml.jpg",
+            "photo_path": "images/redken/redken-acidic-conditioner-300ml.jpg",
             "short": (
                 "Бальзам для м’якості, щільності та контролю довжини.\n\n"
                 "Підходить волоссю після освітлення та фарбування.\n\n"
@@ -419,7 +419,7 @@ CATALOG = {
         "acidic_mask": {
             "btn": "🔹 Маска Acidic Bonding",
             "title": "Маска Redken Acidic Bonding",
-            "photo_path": "images/redken-acidic-mask-250ml.jpg",
+            "photo_path": "images/redken/redken-acidic-mask-250ml.jpg",
             "short": (
                 "Інтенсивна маска для глибокого відновлення.\n\n"
                 "Рекомендована після порошку, блонду, складних технік.\n\n"
@@ -447,7 +447,7 @@ CATALOG = {
         "acidic_leavein": {
             "btn": "🔹 Крем Acidic Bonding (незмивний)",
             "title": "Крем Redken Acidic Bonding (незмивний)",
-            "photo_path": "images/redken-acidic-leavein-150ml.jpg",
+            "photo_path": "images/redken/redken-acidic-leavein-150ml.jpg",
             "short": (
                 "Незмивний крем для захисту довжини.\n\n"
                 "Підходить для сухого, освітленого та пошкодженого волосся.\n\n"
