@@ -20,7 +20,8 @@
       8
     ],
     "source": "Система салонного ухода(1).pdf",
-    "price": 2100
+    "price": 2100,
+    "volume_ml": 300
   },
   "Step 0 — Lipid Stop Reaction": {
     "title": "Step 0 — Lipid Stop Reaction",
