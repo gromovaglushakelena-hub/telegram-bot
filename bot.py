@@ -58,7 +58,7 @@ PRODUCTS = {
     "Тонуюча маска by Gromova, 250 мл": 1000,
     "Олія EG для освітлення": 2100,
     "Color Box для прикореневої зони, 60 мл": 1800,
-    "Color Box для тонування та реконструкції довжини": 3000,
+    "Color Box для довжини": 3500,
 }
 for name, details in SALON_DETAILS.items():
     PRODUCTS[name] = details.get("price", PRODUCTS.get(name))
