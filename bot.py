@@ -126,7 +126,7 @@ def menu(chat_id):
 def salon(chat_id):
     section[chat_id] = "salon"
     bot.send_message(chat_id, "Салон на Оболоні, Київ, Прирічна 27Е. Що вас цікавить?",
-                     reply_markup=keyboard([[PRICE], [HAIRCUT], ["Реконструкція 8D by Gromova"], [BOOK], [CONTACT], [HOME]]))
+                     reply_markup=keyboard([[PRICE], ["Реконструкція 8D by Gromova"], [BOOK], [CONTACT], [HOME]]))
 
 def prices(chat_id):
     section[chat_id] = "price"
