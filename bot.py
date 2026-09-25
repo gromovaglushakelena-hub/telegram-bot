@@ -192,34 +192,87 @@ def available_windows(today=None):
     return sorted(slots.items())
 
 
+WINDOW_FILTERS = [
+    ("GRAY FUSION", "GRAY FUSION"),
+    ("Вихід із темного / чорного", "dark"),
+    ("Камуфляж сивини", "камуфляж / тонування / реконструкція 8D"),
+    ("Тонування волосся", "камуфляж / тонування / реконструкція 8D"),
+    ("Реконструкція 8D by Gromova", "камуфляж / тонування / реконструкція 8D"),
+    ("Жіноча стрижка", "жіноча стрижка"),
+    ("Чоловіча стрижка", "чоловіча стрижка"),
+    ("Розгладжування MODIFIX Dr. Sorbie", None),
+    ("Інші послуги", None),
+]
+
+
+def windows_view(service_index=None):
+    markup = types.InlineKeyboardMarkup()
+    if service_index is None:
+        for index, (name, _) in enumerate(WINDOW_FILTERS):
+            markup.add(types.InlineKeyboardButton(name, callback_data=f"windows:{index}"))
+        text = ("<b>Найближчі вільні вікна</b>\n\nОберіть послугу, щоб переглянути дати.\n"
+                "Запис через адміністратора: час може бути зайнятий протягом дня, "
+                "тому адміністратор перевірить актуальність і підтвердить запис.\n\n"
+                "Оновлено: " + WINDOWS_UPDATED)
+    else:
+        name, key = WINDOW_FILTERS[service_index]
+        text = "<b>" + html.escape(name) + "</b>\n"
+        slots = available_windows()
+        matching = [(day, hour, choices) for (day, hour), choices in slots
+                    if (key == "dark" and any(c.startswith("вихід із темного") for c in choices))
+                    or (key is not None and key in choices)]
+        weekdays = ("Понеділок", "Вівторок", "Середа", "Четвер", "П’ятниця")
+        if key == "dark" and matching:
+            text += "\nПотрібні обидва дні обраної пари:\n"
+            for day, hour, choices in matching:
+                pair = next(c for c in choices if c.startswith("вихід із темного"))
+                details = pair.split("(2 дні: ", 1)[1].rstrip(")")
+                text += "\n📅 <b>" + html.escape(details) + "</b>\n"
+        else:
+            current = None
+            for day, hour, choices in matching:
+                if day != current:
+                    text += "\n📅 <b>" + weekdays[day.weekday()] + ", " + day.strftime("%d.%m") + "</b>\n"
+                    current = day
+                text += "🕒 <b>" + hour + "</b>\n"
+        if matching:
+            text += "\nДля запису надішліть адміністратору обрану дату, час і назву послуги. "
+            text += "Актуальність вікна та запис підтверджує адміністратор."
+        else:
+            text += ("\nНайближчі дати для цієї послуги уточніть в адміністратора. "
+                     "Напишіть, коли вам зручно прийти.")
+        markup.add(types.InlineKeyboardButton("⬅️ Інша послуга", callback_data="windows:list"))
+    markup.add(types.InlineKeyboardButton("Запис через адміністратора", url=ADMIN_LINK))
+    return text, markup
+
+
 def show_windows(chat_id):
     section[chat_id] = "windows"
-    slots = available_windows()
-    navigation = keyboard([[CONTACT], [BACK, HOME]])
-    intro = ("Найближчі вільні вікна\n\nЗапис через адміністратора. "
-             "Оберіть зручний час і напишіть нам — адміністратор перевірить "
-             "актуальність та підтвердить запис. Протягом дня вікна можуть зайняти.\n"
-             "У кожному рядку перелічені послуги на вибір. "
-             "Вихід із темного / чорного потребує двох указаних днів.\n"
-             "Список оновлено: " + WINDOWS_UPDATED + ".")
-    if not slots:
-        intro = ("Найближчі вільні вікна\n\nАктуальний час уточніть в адміністратора. "
-                 "Напишіть, яка послуга вас цікавить і коли вам зручно прийти.")
-    bot.send_message(chat_id, intro, reply_markup=navigation)
-    weekdays = ("Понеділок", "Вівторок", "Середа", "Четвер", "П’ятниця")
-    blocks = []
-    current_day = None
-    for (day, hour), services in slots:
-        if day != current_day:
-            blocks.append(day.strftime("%d.%m") + " · " + weekdays[day.weekday()])
-            current_day = day
-        blocks[-1] += "\n" + hour + " — " + "; ".join(services)
-    for chunk in description_chunks("\n\n".join(blocks)):
-        bot.send_message(chat_id, html.escape(chunk))
-    direct = types.InlineKeyboardMarkup()
-    direct.add(types.InlineKeyboardButton("Запис через адміністратора", url=ADMIN_LINK))
-    bot.send_message(chat_id, "Для запису напишіть адміністратору дату, час і послугу.",
-                     reply_markup=direct)
+    bot.send_message(chat_id, "Оберіть послугу нижче.",
+                     reply_markup=keyboard([[CONTACT], [BACK, HOME]]))
+    text, markup = windows_view()
+    bot.send_message(chat_id, text, reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: bool(call.data and call.data.startswith("windows:")))
+def windows_callback(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    value = call.data.partition(":")[2]
+    if value != "list" and (not value.isdigit() or not 0 <= int(value) < len(WINDOW_FILTERS)):
+        bot.answer_callback_query(call.id, "Відкрийте розділ вільних вікон ще раз.")
+        return
+    bot.answer_callback_query(call.id)
+    chat_id = call.message.chat.id
+    flows.pop(chat_id, None)
+    section[chat_id] = "windows"
+    text, markup = windows_view(None if value == "list" else int(value))
+    try:
+        bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup)
+    except telebot.apihelper.ApiTelegramException as exc:
+        if "message is not modified" not in str(exc).lower():
+            raise
 
 
 def prices(chat_id):
