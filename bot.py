@@ -32,8 +32,9 @@ CART = "🧺 Кошик"
 CONTACT = "Зв'язатися з адміністратором"
 PRICE = "Прайс салону"
 BOOK = "📝 Консультація / запис"
-EG = "EG by Gromova"
-REDKEN = "Redken"
+HOME_CARE = "Домашній догляд"
+COLOR_BOX = "Color Box"
+PRO_CARE = "Для салонів краси"
 CLEAR = "Очистити кошик"
 CHECKOUT = "✅ Оформити замовлення"
 CANCEL = "Скасувати"
@@ -56,6 +57,12 @@ PRODUCTS = {
     "Color Box для прикореневої зони, 60 мл": 1800,
     "Color Box для тонування та реконструкції довжини": 3000,
 }
+CATEGORIES = {
+    HOME_CARE: [name for name in PRODUCTS if not name.startswith("Color Box") and name != "Олія EG для освітлення"],
+    COLOR_BOX: [name for name in PRODUCTS if name.startswith("Color Box")],
+    PRO_CARE: ["Олія EG для освітлення"],
+}
+product_category = {name: category for category, names in CATEGORIES.items() for name in names}
 SERVICES = {
     "GRAY FUSION — робота із сивиною":
         "Робота за природним малюнком сивини без фарбування натурального кореня. "
@@ -122,14 +129,16 @@ def prices(chat_id):
 
 def shop(chat_id):
     section[chat_id] = "shop"
-    bot.send_message(chat_id, "Оберіть бренд:",
-                     reply_markup=keyboard([[EG, REDKEN], [CART], [BACK, HOME]]))
+    bot.send_message(chat_id, "Оберіть розділ магазину:",
+                     reply_markup=keyboard([[HOME_CARE], [COLOR_BOX], [PRO_CARE], [CART], [BACK, HOME]]))
 
-def catalog(chat_id):
+def catalog(chat_id, category=HOME_CARE):
     section[chat_id] = "catalog"
-    bot.send_message(chat_id,
-        "EG by Gromova. Оберіть товар. Об'єм, наявність і вартість без зазначеної ціни уточнить адміністратор до оплати.",
-        reply_markup=keyboard([[name] for name in PRODUCTS] + [[CART], [BACK, HOME]]))
+    introduction = f"{category}. Оберіть товар."
+    if category == PRO_CARE:
+        introduction += " Розділ салонного догляду доповнюється. За консультацією звертайтеся до адміністратора."
+    bot.send_message(chat_id, introduction,
+        reply_markup=keyboard([[name] for name in CATEGORIES[category]] + [[CART], [BACK, HOME]]))
 
 def product(chat_id, name):
     selection[chat_id] = name
@@ -314,7 +323,7 @@ def dispatch(message):
         flows.pop(chat_id, None)
         current = section.get(chat_id)
         if current == "product":
-            catalog(chat_id)
+            catalog(chat_id, product_category.get(selection.get(chat_id), HOME_CARE))
         elif current == "catalog":
             shop(chat_id)
         elif current == "price":
@@ -344,13 +353,8 @@ def dispatch(message):
         begin_flow(chat_id, "booking")
     elif text == SHOP:
         shop(chat_id)
-    elif text == EG:
-        catalog(chat_id)
-    elif text == REDKEN:
-        bot.send_message(chat_id,
-            "Redken доступний під замовлення. Ціну та наявність уточнює адміністратор. "
-            "Напишіть, який засіб вас цікавить: " + ADMIN_LINK,
-            reply_markup=keyboard([[CONTACT], [BACK, HOME]]))
+    elif text in CATEGORIES:
+        catalog(chat_id, text)
     elif text in PRODUCTS:
         product(chat_id, text)
     elif text == "Додати в кошик" and selection.get(chat_id):
