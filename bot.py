@@ -1,10 +1,12 @@
 """Telegram storefront and salon intake for Space of Beauty by Gromova."""
 import html
+import json
 import logging
 import os
 import re
 import time
 from collections import Counter
+from pathlib import Path
 
 import telebot
 from telebot import types
@@ -18,6 +20,9 @@ ADMIN_LINK = "https://t.me/beautyspace_admin"
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML", threaded=False)
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+with (BASE_DIR / "eg_catalog.json").open(encoding="utf-8") as catalog_file:
+    PRODUCT_DETAILS = json.load(catalog_file)
 
 HOME = "🏠 Головне меню"
 BACK = "⬅️ Назад"
@@ -131,12 +136,41 @@ def product(chat_id, name):
     section[chat_id] = "product"
     price = PRODUCTS[name]
     cost = f"{price} грн" if price is not None else "ціну та наявність уточнить адміністратор"
+    details = PRODUCT_DETAILS.get(name)
+    markup = keyboard([["Додати в кошик"], [BACK, CART, HOME]])
+    if details:
+        caption = f"<b>{html.escape(details['title'])}</b>\n{html.escape(name)}\n{cost}"
+        try:
+            with (BASE_DIR / details["photo"]).open("rb") as photo:
+                bot.send_photo(chat_id, photo, caption=caption, reply_markup=markup)
+        except Exception:
+            log.exception("Product photo could not be sent: %s", details["photo"])
+            bot.send_message(chat_id, caption, reply_markup=markup)
+        for chunk in description_chunks(details["description"]):
+            bot.send_message(chat_id, html.escape(chunk), reply_markup=markup)
+        return
     description = ("Для прикореневої зони й довжини є окремі набори. "
                    "Color Box підтримує результат між візитами, не замінює контроль у салоні."
                    if name.startswith("Color Box") else
                    "Спосіб застосування й відповідність вашому волоссю уточнить адміністратор.")
     bot.send_message(chat_id, f"<b>{html.escape(name)}</b>\n{cost}.\n{description}",
                      reply_markup=keyboard([["Додати в кошик"], [BACK, CART, HOME]]))
+
+def description_chunks(text):
+    """Split full descriptions at paragraphs; keep each Telegram message safe."""
+    while text:
+        end = min(len(text), 3000)
+        # Telegram measures text in UTF-16 units; preserve whole code points.
+        while len(text[:end].encode("utf-16-le")) // 2 > 3500:
+            end -= 1
+        if end < len(text):
+            boundary = text.rfind("\n\n", 0, end)
+            if boundary <= 0:
+                boundary = text.rfind(" ", 0, end)
+            if boundary > 0:
+                end = boundary
+        yield text[:end]
+        text = text[end:].lstrip()
 
 def cart_text(chat_id):
     counts = Counter(carts.get(chat_id, []))
