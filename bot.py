@@ -34,6 +34,7 @@ SHOP = "Магазин косметики"
 CART = "🧺 Кошик"
 CONTACT = "Зв'язатися з адміністратором"
 PRICE = "Прайс салону"
+HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
 HOME_CARE = "Домашній догляд"
 COLOR_BOX = "Color Box"
@@ -87,9 +88,14 @@ SERVICES = {
         "Після косметичного темного кольору зазвичай потрібні два етапи: "
         "смивка й реконструкція, потім освітлення та техніка. "
         "План, безпечний результат і вартість визначаються на консультації.",
-    "Стрижка та інші послуги":
-        "Напишіть адміністратору або залиште заявку: підберемо майстра "
-        "і повідомимо актуальну вартість.",
+    HAIRCUT:
+        "Стрижка жіноча — 1200 грн.\n"
+        "Стрижка чоловіча — 1200 грн.\n"
+        "Стрижка чубчика — 500 грн.\n\n"
+        "Стрижка в Олени Громової — 1500 грн.\n"
+        "Олена працює лише в комплексі з реконструкцією волосся. "
+        "Реконструкція оплачується додатково й не входить у 1500 грн. "
+        "Вартість реконструкції та загальну суму комплексу уточнить адміністратор перед записом.",
 }
 # Per-process state; an interrupted Render restart resets unfinished dialogs.
 carts = {}
@@ -125,7 +131,7 @@ def menu(chat_id):
 def salon(chat_id):
     section[chat_id] = "salon"
     bot.send_message(chat_id, "Салон на Оболоні, Київ, Прирічна 27Е. Що вас цікавить?",
-                     reply_markup=keyboard([[PRICE], [BOOK], [CONTACT], [HOME]]))
+                     reply_markup=keyboard([[PRICE], [HAIRCUT], [BOOK], [CONTACT], [HOME]]))
 
 def prices(chat_id):
     section[chat_id] = "price"
@@ -332,7 +338,7 @@ def dispatch(message):
             catalog(chat_id, product_category.get(selection.get(chat_id), HOME_CARE))
         elif current == "catalog":
             shop(chat_id)
-        elif current == "price":
+        elif current in ("price", "haircut"):
             salon(chat_id)
         else:
             menu(chat_id)
@@ -353,6 +359,8 @@ def dispatch(message):
     elif text == PRICE:
         prices(chat_id)
     elif text in SERVICES:
+        if text == HAIRCUT:
+            section[chat_id] = "haircut"
         bot.send_message(chat_id, html.escape(SERVICES[text]),
                          reply_markup=keyboard([[BOOK], [BACK, HOME]]))
     elif text == BOOK:
