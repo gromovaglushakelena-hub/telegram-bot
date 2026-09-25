@@ -6,7 +6,9 @@ import os
 import re
 import time
 from collections import Counter
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import telebot
 from telebot import types
@@ -34,6 +36,7 @@ SHOP = "Магазин косметики"
 CART = "🧺 Кошик"
 CONTACT = "Зв'язатися з адміністратором"
 PRICE = "Прайс салону"
+WINDOWS = "Найближчі вільні вікна"
 HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
 HOME_CARE = "Домашній догляд"
@@ -127,7 +130,97 @@ def menu(chat_id):
 def salon(chat_id):
     section[chat_id] = "salon"
     bot.send_message(chat_id, "Салон на Оболоні, Київ, Прирічна 27Е. Що вас цікавить?",
-                     reply_markup=keyboard([[PRICE], [BOOK], [CONTACT], [HOME]]))
+                     reply_markup=keyboard([[PRICE], [WINDOWS], [BOOK], [CONTACT], [HOME]]))
+
+# Manually confirmed availability; never infer extra openings from an empty day.
+WINDOWS_UPDATED = "25.09.2026"
+WINDOW_SERVICES = {
+    "GRAY FUSION": {
+        "2026-09-29": ["12:30"], "2026-09-30": ["10:00", "13:00"],
+        "2026-10-01": ["10:00", "11:00"], "2026-10-02": ["10:00", "12:00"],
+        "2026-10-05": ["12:30"], "2026-10-06": ["10:00", "12:30"],
+        "2026-10-07": ["12:30"], "2026-10-08": ["12:30"],
+        "2026-10-09": ["10:00", "12:30"],
+    },
+    "камуфляж / тонування / реконструкція 8D": {
+        "2026-09-28": ["10:00"], "2026-09-29": ["12:30"],
+        "2026-10-01": ["10:00", "16:30"], "2026-10-02": ["12:30"],
+        "2026-10-06": ["10:00", "15:00"], "2026-10-07": ["10:00", "13:00"],
+        "2026-10-08": ["10:00", "16:00"], "2026-10-09": ["17:00"],
+    },
+    "жіноча стрижка": {
+        "2026-09-30": ["10:00"], "2026-10-02": ["16:30"],
+        "2026-10-05": ["12:30"], "2026-10-07": ["10:00"], "2026-10-09": ["10:00"],
+    },
+    "чоловіча стрижка": {
+        "2026-09-30": ["10:00"], "2026-10-05": ["12:30"],
+        "2026-10-07": ["10:00"], "2026-10-09": ["10:00"],
+    },
+}
+DARK_WINDOW_PAIRS = [
+    ("2026-09-29", "2026-09-30"), ("2026-10-01", "2026-10-02"),
+    ("2026-10-06", "2026-10-07"), ("2026-10-07", "2026-10-08"),
+    ("2026-10-08", "2026-10-09"),
+]
+
+
+def available_windows(today=None):
+    today = today or datetime.now(ZoneInfo("Europe/Kyiv")).date()
+    first, last = today + timedelta(days=1), today + timedelta(days=14)
+    slots = {}
+
+    def eligible(day):
+        return first <= day <= last and day.weekday() < 5
+
+    def add(day, hour, service):
+        choices = slots.setdefault((day, hour), [])
+        if service not in choices:
+            choices.append(service)
+
+    for service, days in WINDOW_SERVICES.items():
+        for day_text, hours in days.items():
+            day = date.fromisoformat(day_text)
+            if eligible(day):
+                for hour in hours:
+                    add(day, hour, service)
+    for start_text, end_text in DARK_WINDOW_PAIRS:
+        start, end = date.fromisoformat(start_text), date.fromisoformat(end_text)
+        if eligible(start) and eligible(end):
+            add(start, "10:00", "вихід із темного / чорного (2 дні: "
+                + start.strftime("%d.%m") + " та " + end.strftime("%d.%m")
+                + ", обидва о 10:00)")
+    return sorted(slots.items())
+
+
+def show_windows(chat_id):
+    section[chat_id] = "windows"
+    slots = available_windows()
+    navigation = keyboard([[CONTACT], [BACK, HOME]])
+    intro = ("Найближчі вільні вікна\n\nЗапис через адміністратора. "
+             "Оберіть зручний час і напишіть нам — адміністратор перевірить "
+             "актуальність та підтвердить запис. Протягом дня вікна можуть зайняти.\n"
+             "У кожному рядку перелічені послуги на вибір. "
+             "Вихід із темного / чорного потребує двох указаних днів.\n"
+             "Список оновлено: " + WINDOWS_UPDATED + ".")
+    if not slots:
+        intro = ("Найближчі вільні вікна\n\nАктуальний час уточніть в адміністратора. "
+                 "Напишіть, яка послуга вас цікавить і коли вам зручно прийти.")
+    bot.send_message(chat_id, intro, reply_markup=navigation)
+    weekdays = ("Понеділок", "Вівторок", "Середа", "Четвер", "П’ятниця")
+    blocks = []
+    current_day = None
+    for (day, hour), services in slots:
+        if day != current_day:
+            blocks.append(day.strftime("%d.%m") + " · " + weekdays[day.weekday()])
+            current_day = day
+        blocks[-1] += "\n" + hour + " — " + "; ".join(services)
+    for chunk in description_chunks("\n\n".join(blocks)):
+        bot.send_message(chat_id, html.escape(chunk))
+    direct = types.InlineKeyboardMarkup()
+    direct.add(types.InlineKeyboardButton("Запис через адміністратора", url=ADMIN_LINK))
+    bot.send_message(chat_id, "Для запису напишіть адміністратору дату, час і послугу.",
+                     reply_markup=direct)
+
 
 def prices(chat_id):
     section[chat_id] = "price"
@@ -334,7 +427,7 @@ def dispatch(message):
             catalog(chat_id, product_category.get(selection.get(chat_id), HOME_CARE))
         elif current == "catalog":
             shop(chat_id)
-        elif current in ("price", "haircut"):
+        elif current in ("price", "haircut", "windows"):
             salon(chat_id)
         else:
             menu(chat_id)
@@ -352,6 +445,8 @@ def dispatch(message):
         return
     if text == SALON:
         salon(chat_id)
+    elif text == WINDOWS:
+        show_windows(chat_id)
     elif text == PRICE:
         prices(chat_id)
     elif text in SERVICES:
