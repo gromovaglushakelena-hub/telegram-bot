@@ -52,16 +52,16 @@ PRODUCTS = {
     "Кондиціонер EG, 400 мл": 1000,
     "Відновлювальний спрей EG, 250 мл": 1000,
     "Термозахист EG, 100 мл": 900,
-    "Маска EG Step 1 — ліпідна, 250 мл": 1200,
-    "Маска EG Step 2 — амінокератинова, 250 мл": 1200,
-    "Маска EG Step 3 — протеїнова, 250 мл": 1200,
+    "Маска EG Step 1 — ліпідна, 250 мл": 1000,
+    "Маска EG Step 2 — амінокератинова, 250 мл": 1000,
+    "Маска EG Step 3 — протеїнова, 250 мл": 1000,
     "Тонувальна маска EG": None,
-    "Олія EG для освітлення": 1600,
+    "Олія EG для освітлення": 2100,
     "Color Box для прикореневої зони, 60 мл": 1800,
     "Color Box для тонування та реконструкції довжини": 3000,
 }
-for name in SALON_DETAILS:
-    PRODUCTS.setdefault(name, None)
+for name, details in SALON_DETAILS.items():
+    PRODUCTS[name] = details.get("price", PRODUCTS.get(name))
 CATEGORIES = {
     HOME_CARE: [name for name in PRODUCTS if not name.startswith("Color Box") and name not in SALON_DETAILS],
     COLOR_BOX: [name for name in PRODUCTS if name.startswith("Color Box")],
@@ -153,7 +153,8 @@ def product(chat_id, name):
     details = PRODUCT_DETAILS.get(name)
     markup = keyboard([["Додати в кошик"], [BACK, CART, HOME]])
     if details:
-        caption = f"<b>{html.escape(details['title'])}</b>\n{html.escape(name)}\n{cost}"
+        volume = f"\nОб’єм: {details['volume_ml']} мл" if details.get("volume_ml") else ""
+        caption = f"<b>{html.escape(details['title'])}</b>\n{html.escape(name)}{volume}\n{cost}"
         try:
             with (BASE_DIR / details["photo"]).open("rb") as photo:
                 bot.send_photo(chat_id, photo, caption=caption, reply_markup=markup)
