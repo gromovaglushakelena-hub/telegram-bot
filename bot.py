@@ -23,6 +23,9 @@ log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 with (BASE_DIR / "eg_catalog.json").open(encoding="utf-8") as catalog_file:
     PRODUCT_DETAILS = json.load(catalog_file)
+with (BASE_DIR / "salon_catalog.json").open(encoding="utf-8") as catalog_file:
+    SALON_DETAILS = json.load(catalog_file)
+PRODUCT_DETAILS.update(SALON_DETAILS)
 
 HOME = "🏠 Головне меню"
 BACK = "⬅️ Назад"
@@ -57,10 +60,12 @@ PRODUCTS = {
     "Color Box для прикореневої зони, 60 мл": 1800,
     "Color Box для тонування та реконструкції довжини": 3000,
 }
+for name in SALON_DETAILS:
+    PRODUCTS.setdefault(name, None)
 CATEGORIES = {
-    HOME_CARE: [name for name in PRODUCTS if not name.startswith("Color Box") and name != "Олія EG для освітлення"],
+    HOME_CARE: [name for name in PRODUCTS if not name.startswith("Color Box") and name not in SALON_DETAILS],
     COLOR_BOX: [name for name in PRODUCTS if name.startswith("Color Box")],
-    PRO_CARE: ["Олія EG для освітлення"],
+    PRO_CARE: list(SALON_DETAILS),
 }
 product_category = {name: category for category, names in CATEGORIES.items() for name in names}
 SERVICES = {
@@ -136,7 +141,7 @@ def catalog(chat_id, category=HOME_CARE):
     section[chat_id] = "catalog"
     introduction = f"{category}. Оберіть товар."
     if category == PRO_CARE:
-        introduction += " Розділ салонного догляду доповнюється. За консультацією звертайтеся до адміністратора."
+        introduction += " Професійна система EG by Gromova. Ціну й об’єм засобів без зазначеної вартості уточнить адміністратор до оплати."
     bot.send_message(chat_id, introduction,
         reply_markup=keyboard([[name] for name in CATEGORIES[category]] + [[CART], [BACK, HOME]]))
 
