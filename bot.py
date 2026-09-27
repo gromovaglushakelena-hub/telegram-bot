@@ -246,6 +246,12 @@ DARK_WINDOW_PAIRS = [
 ]
 
 
+def window_date_label(day):
+    months = ("січня", "лютого", "березня", "квітня", "травня", "червня",
+              "липня", "серпня", "вересня", "жовтня", "листопада", "грудня")
+    return f"{day.day} {months[day.month - 1]}"
+
+
 def available_windows(today=None):
     today = today or datetime.now(ZoneInfo("Europe/Kyiv")).date()
     first, last = today + timedelta(days=1), today + timedelta(days=14)
@@ -262,15 +268,16 @@ def available_windows(today=None):
     for service, days in WINDOW_SERVICES.items():
         for day_text, hours in days.items():
             day = date.fromisoformat(day_text)
-            if eligible(day):
+            # Show the full confirmed list for camouflage and toning.
+            if day >= first and (service == "камуфляж / тонування" or eligible(day)):
                 for hour in hours:
                     add(day, hour, service)
     for start_text, start_hour, end_text, end_hour in DARK_WINDOW_PAIRS:
         start, end = date.fromisoformat(start_text), date.fromisoformat(end_text)
         if eligible(start) and eligible(end):
             add(start, start_hour, "вихід із темного / чорного (2 дні: "
-                + start.strftime("%d.%m") + " о " + start_hour
-                + " та " + end.strftime("%d.%m") + " о " + end_hour + ")")
+                + window_date_label(start) + " о " + start_hour
+                + " та " + window_date_label(end) + " о " + end_hour + ")")
     return sorted(slots.items())
 
 
@@ -314,7 +321,7 @@ def windows_view(service_index=None):
             current = None
             for day, hour, choices in matching:
                 if day != current:
-                    text += "\n📅 <b>" + weekdays[day.weekday()] + ", " + day.strftime("%d.%m") + "</b>\n"
+                    text += "\n📅 <b>" + weekdays[day.weekday()] + ", " + window_date_label(day) + "</b>\n"
                     current = day
                 text += "🕒 <b>" + hour + "</b>\n"
         if matching:
