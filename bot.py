@@ -252,7 +252,7 @@ def available_windows(today=None):
     slots = {}
 
     def eligible(day):
-        return first <= day <= last and day.weekday() < 5
+        return first <= day <= last
 
     def add(day, hour, service):
         choices = slots.setdefault((day, hour), [])
@@ -303,7 +303,7 @@ def windows_view(service_index=None):
         matching = [(day, hour, choices) for (day, hour), choices in slots
                     if (key == "dark" and any(c.startswith("вихід із темного") for c in choices))
                     or (key is not None and key in choices)]
-        weekdays = ("Понеділок", "Вівторок", "Середа", "Четвер", "П’ятниця")
+        weekdays = ("Понеділок", "Вівторок", "Середа", "Четвер", "П’ятниця", "Субота", "Неділя")
         if key == "dark" and matching:
             text += "\nПотрібні обидва дні обраної пари:\n"
             for day, hour, choices in matching:
