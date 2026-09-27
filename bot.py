@@ -266,34 +266,40 @@ WINDOW_SERVICES = {
 }
 DARK_WINDOW_PAIRS = [
     [
-        "2026-10-19",
+        "2026-09-29",
         "10:00",
-        "2026-10-20",
+        "2026-09-30",
+        "13:00"
+    ],
+    [
+        "2026-10-01",
+        "10:00",
+        "2026-10-02",
         "10:00"
     ],
     [
-        "2026-10-21",
+        "2026-10-06",
         "10:00",
-        "2026-10-22",
-        "12:30"
-    ],
-    [
-        "2026-10-28",
-        "10:00",
-        "2026-10-29",
+        "2026-10-07",
         "10:00"
     ],
     [
-        "2026-11-04",
+        "2026-10-07",
         "10:00",
-        "2026-11-05",
+        "2026-10-08",
         "10:00"
     ],
     [
-        "2026-11-09",
+        "2026-10-08",
         "10:00",
-        "2026-11-10",
+        "2026-10-09",
         "10:00"
+    ],
+    [
+        "2026-10-10",
+        "10:30",
+        "2026-10-11",
+        "11:30"
     ]
 ]
 
@@ -328,8 +334,8 @@ def available_windows(today=None):
         start, end = date.fromisoformat(start_text), date.fromisoformat(end_text)
         if eligible(start) and eligible(end):
             add(start, start_hour, "вихід із темного / чорного (2 дні: "
-                + window_date_label(start) + " о " + start_hour
-                + " та " + window_date_label(end) + " о " + end_hour + ")")
+                + "1-й день — змивка: " + window_date_label(start) + " о " + start_hour
+                + "\n2-й день — фарбування: " + window_date_label(end) + " о " + end_hour + ")")
     return sorted(slots.items())
 
 
