@@ -20,6 +20,8 @@ if not TOKEN or not ADMIN_CHAT_ID:
 ADMIN_CHAT_ID = int(ADMIN_CHAT_ID)
 ADMIN_LINK = "https://t.me/beautyspace_admin"
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML", threaded=False)
+BOT_DISPLAY_NAME = "Space of Beauty by Gromova | Прайс • Запис • Вільні вікна"
+BOT_DESCRIPTION = "Послуги • актуальний прайс • вільні вікна • запис • зв’язок з адміністратором"
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
@@ -565,7 +567,21 @@ def dispatch(message):
         bot.send_message(chat_id, "Оберіть кнопку в меню або напишіть адміністратору.",
                          reply_markup=keyboard([[HOME, CONTACT]]))
 
+def configure_bot_profile():
+    """Update the public Telegram profile for the salon bot."""
+    try:
+        bot.set_my_name(BOT_DISPLAY_NAME)
+        bot.set_my_name(BOT_DISPLAY_NAME, language_code="uk")
+        bot.set_my_description(BOT_DESCRIPTION)
+        bot.set_my_description(BOT_DESCRIPTION, language_code="uk")
+        bot.set_my_short_description(BOT_DESCRIPTION)
+        bot.set_my_short_description(BOT_DESCRIPTION, language_code="uk")
+        log.info("Bot profile metadata updated")
+    except Exception:
+        log.exception("Could not update bot profile metadata")
+
 if __name__ == "__main__":
+    configure_bot_profile()
     while True:
         try:
             bot.remove_webhook()
