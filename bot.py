@@ -135,13 +135,13 @@ def salon(chat_id):
                      reply_markup=keyboard([[PRICE], [WINDOWS], [BOOK], [CONTACT], [HOME]]))
 
 # Manually confirmed availability; never infer extra openings from an empty day.
-WINDOWS_UPDATED = "07.10.2026"
+WINDOWS_UPDATED = "08.10.2026"
 WINDOW_SERVICES = {
     "GRAY FUSION": {
-        "2026-10-08": [
+        "2026-10-09": [
             "10:00"
         ],
-        "2026-10-09": [
+        "2026-10-10": [
             "10:00"
         ],
         "2026-10-12": [
@@ -248,10 +248,6 @@ WINDOW_SERVICES = {
         ]
     },
     "реконструкція 8D": {
-        "2026-10-08": [
-            "10:00",
-            "15:00"
-        ],
         "2026-10-09": [
             "14:30"
         ],
@@ -286,12 +282,6 @@ WINDOW_SERVICES = {
 }
 DARK_WINDOW_PAIRS = [
     [
-        "2026-10-08",
-        "10:00",
-        "2026-10-09",
-        "10:00"
-    ],
-    [
         "2026-10-17",
         "10:30",
         "2026-10-18",
@@ -301,6 +291,12 @@ DARK_WINDOW_PAIRS = [
         "2026-10-19",
         "10:30",
         "2026-10-20",
+        "10:00"
+    ],
+    [
+        "2026-10-27",
+        "10:00",
+        "2026-10-28",
         "10:00"
     ]
 ]
