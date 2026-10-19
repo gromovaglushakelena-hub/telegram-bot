@@ -8,6 +8,7 @@ import time
 from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import telebot
@@ -442,8 +443,10 @@ def show_team(chat_id):
             last_group = group
         actions = types.InlineKeyboardMarkup()
         if role == "Майстер":
+            message = f"Добрий день! Хочу записатися до {name}."
+            admin_url = f"{ADMIN_LINK}?text={quote(message)}"
             actions.add(types.InlineKeyboardButton(
-                "Записатися до майстра", callback_data=f"team:book:{index}"))
+                "Записатися до майстра", url=admin_url))
         else:
             actions.add(types.InlineKeyboardButton(
                 "Зв'язатися з адміністратором", url=ADMIN_LINK))
@@ -451,27 +454,6 @@ def show_team(chat_id):
             bot.send_photo(chat_id, photo,
                            caption=f"<b>{html.escape(name)}</b> · {role}",
                            reply_markup=actions)
-
-
-@bot.callback_query_handler(func=lambda call: bool(call.data and call.data.startswith("team:book:")))
-def book_team_member(call):
-    if not call.message or call.message.chat.type != "private":
-        bot.answer_callback_query(call.id)
-        return
-    try:
-        index = int(call.data.rsplit(":", 1)[1])
-        name, role, _ = TEAM_MEMBERS[index]
-        if role != "Майстер":
-            raise ValueError("Not a master")
-    except (ValueError, IndexError):
-        bot.answer_callback_query(call.id, "Відкрийте розділ «Наша команда» ще раз.")
-        return
-    bot.answer_callback_query(call.id)
-    chat_id = call.message.chat.id
-    begin_flow(chat_id, "booking")
-    flows[chat_id]["master"] = name
-    bot.send_message(chat_id, f"Запис до майстра: <b>{html.escape(name)}</b>. "
-                             "Заповніть коротку заявку, і адміністратор узгодить час.")
 
 
 def prices(chat_id):
