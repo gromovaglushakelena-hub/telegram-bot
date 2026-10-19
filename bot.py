@@ -40,6 +40,7 @@ CONTACT = "Зв'язатися з адміністратором"
 PRICE = "Прайс салону"
 TEAM = "👥 Наша команда"
 SALON_INTRO = "🏡 Знайомство з салоном"
+MAP_MENU = "📍 Як нас знайти"
 WINDOWS = "Найближчі вільні вікна"
 HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
@@ -137,7 +138,7 @@ def keyboard(rows):
 def menu(chat_id):
     section[chat_id] = "main"
     bot.send_message(chat_id, "Вітаємо у Space of Beauty by Gromova. Оберіть розділ:",
-                     reply_markup=keyboard([[SALON, SHOP], [GRAY_CHANNEL], [CART], [CONTACT]]))
+                     reply_markup=keyboard([[SALON, SHOP], [GRAY_CHANNEL], [CART], [MAP_MENU], [CONTACT]]))
 
 
 SALON_MAP_URL = (
@@ -189,7 +190,18 @@ def show_salon_intro(chat_id):
         types.InlineKeyboardButton("📍 Як нас знайти", url=SALON_MAP_URL),
         types.InlineKeyboardButton("📝 Записатися", callback_data="salon_intro:book"),
     )
+    markup.add(types.InlineKeyboardButton("🏠 Головне меню", callback_data="salon_intro:home"))
     bot.send_message(chat_id, SALON_INTRO_TEXT, reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "salon_intro:home")
+def salon_intro_home(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    bot.answer_callback_query(call.id)
+    flows.pop(call.message.chat.id, None)
+    menu(call.message.chat.id)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "salon_intro:book")
@@ -774,6 +786,10 @@ def dispatch(message):
         bot.send_message(chat_id, "Маєте запитання про сивину або техніку GRAY FUSION? У нашому каналі розповідаємо про сивину, догляд та показуємо приклади робіт.", reply_markup=markup)
     elif text == SALON_INTRO:
         show_salon_intro(chat_id)
+    elif text == MAP_MENU:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("📍 Відкрити маршрут у Google Maps", url=SALON_MAP_URL))
+        bot.send_message(chat_id, "Чекаємо на вас: Київ, Оболонь, вул. Прирічна, 27Е. Натисніть кнопку, щоб прокласти маршрут.", reply_markup=markup)
     elif text == TEAM:
         show_team(chat_id)
     elif text == WINDOWS:
