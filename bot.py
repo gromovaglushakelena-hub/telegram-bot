@@ -39,6 +39,7 @@ CART = "🧺 Кошик"
 CONTACT = "Зв'язатися з адміністратором"
 PRICE = "Прайс салону"
 TEAM = "👥 Наша команда"
+SALON_INTRO = "🏡 Знайомство з салоном"
 WINDOWS = "Найближчі вільні вікна"
 HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
@@ -138,10 +139,63 @@ def menu(chat_id):
     bot.send_message(chat_id, "Вітаємо у Space of Beauty by Gromova. Оберіть розділ:",
                      reply_markup=keyboard([[SALON, SHOP], [GRAY_CHANNEL], [CART], [CONTACT]]))
 
+
+SALON_MAP_URL = (
+    "https://www.google.com/maps/dir/?api=1"
+    "&destination=%D0%9F%D1%80%D0%B8%D1%80%D1%96%D1%87%D0%BD%D0%B0+27%D0%95%2C+"
+    "%D0%9A%D0%B8%D1%97%D0%B2%2C+%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D0%B0"
+)
+SALON_INTRO_TEXT = (
+    "<b>Знайомство зі Space of Beauty by Gromova 🤍</b>\n\n"
+    "Ми знаходимося в Києві, на Оболоні, за адресою: вул. Прирічна, 27Е, "
+    "просто біля набережної.\n\n"
+    "У нас затишний, просторий салон із красивим краєвидом із вікон. "
+    "Поки ми займаємося вашим волоссям, ви можете милуватися набережною "
+    "та спостерігати за корабликами, що пропливають повз.\n\n"
+    "Ми знаємо, що деякі процедури тривають 6–10 годин, тому подбали про "
+    "те, щоб вам було комфортно протягом усього візиту.\n\n"
+    "🚗 <b>Власна парковка</b>\n"
+    "Приїжджайте на автомобілі. Біля салону є власна парковка для наших клієнтів.\n\n"
+    "👘 <b>Турбота про ваш одяг</b>\n"
+    "Кожному клієнту ми пропонуємо переодягнутися у спеціальний халат. "
+    "Ваш одяг залишиться чистим, не забрудниться фарбою та не помнеться під час процедури.\n\n"
+    "☕ <b>Чай, кава та смачна їжа</b>\n"
+    "Ми завжди запропонуємо вам чай або каву. Якщо ви прийшли на тривале фарбування, "
+    "можете замовити доставку їжі прямо до салону або попросити адміністратора "
+    "допомогти із замовленням. Не соромтеся їсти під час перебування у нас!\n\n"
+    "💻 <b>Працюйте, поки ми займаємося вашим волоссям</b>\n"
+    "У салоні є Wi-Fi. Можете взяти ноутбук, працювати, відповідати на повідомлення "
+    "та займатися своїми справами під час фарбування.\n\n"
+    "⚡ <b>Ми готові до відключень світла та води</b>\n"
+    "У салоні встановлений генератор, а також є запас води об'ємом 1000 літрів. "
+    "Тому навіть під час відключень електроенергії ми можемо продовжувати роботу "
+    "та виконувати заплановані процедури.\n\n"
+    "У Space of Beauty by Gromova можна відпочивати, працювати, пити каву, "
+    "обідати та просто насолоджуватися часом, поки ми займаємося вашим волоссям.\n\n"
+    "Будемо раді бачити вас у нашому салоні! 🤍"
+)
+
+
+def show_salon_intro(chat_id):
+    section[chat_id] = "salon_intro"
+    image_path = BASE_DIR / "images/salon/salon-intro.jpg"
+    if image_path.is_file():
+        with image_path.open("rb") as photo:
+            bot.send_photo(chat_id, photo, caption="Space of Beauty by Gromova 🤍")
+    else:
+        log.warning("Salon intro image not found: %s", image_path)
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("📍 Як нас знайти", url=SALON_MAP_URL),
+        types.InlineKeyboardButton("📝 Записатися", url=ADMIN_LINK),
+    )
+    bot.send_message(chat_id, SALON_INTRO_TEXT, reply_markup=markup)
+
+
 def salon(chat_id):
     section[chat_id] = "salon"
     bot.send_message(chat_id, "Салон на Оболоні, Київ, Прирічна 27Е. Що вас цікавить?",
-                     reply_markup=keyboard([[PRICE], [WINDOWS], [BOOK], [TEAM], [CONTACT], [HOME]]))
+                     reply_markup=keyboard([[SALON_INTRO], [PRICE], [WINDOWS], [BOOK], [TEAM], [CONTACT], [HOME]]))
 
 # Manually confirmed availability; never infer extra openings from an empty day.
 WINDOWS_UPDATED = "17.10.2026"
@@ -687,7 +741,7 @@ def dispatch(message):
             catalog(chat_id, product_category.get(selection.get(chat_id), HOME_CARE))
         elif current == "catalog":
             shop(chat_id)
-        elif current in ("price", "haircut", "windows", "team"):
+        elif current in ("price", "haircut", "windows", "team", "salon_intro"):
             salon(chat_id)
         else:
             menu(chat_id)
@@ -709,6 +763,8 @@ def dispatch(message):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("Перейти до каналу про сивину", url=GRAY_CHANNEL_URL))
         bot.send_message(chat_id, "Маєте запитання про сивину або техніку GRAY FUSION? У нашому каналі розповідаємо про сивину, догляд та показуємо приклади робіт.", reply_markup=markup)
+    elif text == SALON_INTRO:
+        show_salon_intro(chat_id)
     elif text == TEAM:
         show_team(chat_id)
     elif text == WINDOWS:
