@@ -187,9 +187,18 @@ def show_salon_intro(chat_id):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton("📍 Як нас знайти", url=SALON_MAP_URL),
-        types.InlineKeyboardButton("📝 Записатися", url=ADMIN_LINK),
+        types.InlineKeyboardButton("📝 Записатися", callback_data="salon_intro:book"),
     )
     bot.send_message(chat_id, SALON_INTRO_TEXT, reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "salon_intro:book")
+def salon_intro_booking(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    bot.answer_callback_query(call.id)
+    begin_flow(call.message.chat.id, "booking")
 
 
 def salon(chat_id):
