@@ -43,6 +43,8 @@ HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
 HOME_CARE = "Домашній догляд"
 COLOR_BOX = "Color Box"
+GRAY_CHANNEL = "GRAY FUSION | Все про сивину"
+GRAY_CHANNEL_URL = "https://t.me/gromova_sedina_kiev"
 PRO_CARE = "Для салонів краси"
 CLEAR = "Очистити кошик"
 CHECKOUT = "✅ Оформити замовлення"
@@ -127,7 +129,7 @@ def keyboard(rows):
 def menu(chat_id):
     section[chat_id] = "main"
     bot.send_message(chat_id, "Вітаємо у Space of Beauty by Gromova. Оберіть розділ:",
-                     reply_markup=keyboard([[SALON, SHOP], [CART], [CONTACT]]))
+                     reply_markup=keyboard([[SALON, SHOP], [GRAY_CHANNEL], [CART], [CONTACT]]))
 
 def salon(chat_id):
     section[chat_id] = "salon"
@@ -631,6 +633,10 @@ def dispatch(message):
         return
     if text == SALON:
         salon(chat_id)
+    elif text == GRAY_CHANNEL:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("Перейти до каналу про сивину", url=GRAY_CHANNEL_URL))
+        bot.send_message(chat_id, "Маєте запитання про сивину або техніку GRAY FUSION? У нашому каналі розповідаємо про сивину, догляд та показуємо приклади робіт.", reply_markup=markup)
     elif text == WINDOWS:
         show_windows(chat_id)
     elif text == PRICE:
@@ -648,6 +654,10 @@ def dispatch(message):
             section[chat_id] = "haircut"
         bot.send_message(chat_id, html.escape(SERVICES[text]),
                          reply_markup=keyboard([[BOOK], [BACK, HOME]]))
+        if text == "GRAY FUSION — робота із сивиною":
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("Більше про сивину в нашому каналі", url=GRAY_CHANNEL_URL))
+            bot.send_message(chat_id, "Відповіді на запитання про сивину та приклади робіт:", reply_markup=markup)
     elif text == BOOK:
         begin_flow(chat_id, "booking")
     elif text == SHOP:
