@@ -8,7 +8,6 @@ import time
 from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import telebot
@@ -114,6 +113,12 @@ ORDER_FIELDS = [
     ("city", "Місто доставки?"),
     ("delivery", "Відділення чи поштомат Нової пошти?"),
     ("number", "Номер відділення або поштомату?"),
+]
+TEAM_BOOK_FIELDS = [
+    ("service", "На яку послугу хочете записатися?"),
+    ("when", "На яку дату або час вам було б зручно?"),
+    ("name", "Як до вас звертатися?"),
+    ("phone", "Залиште номер телефону у форматі +380XXXXXXXXX."),
 ]
 BOOK_FIELDS = [
     ("name", "Як до вас звертатися?"),
@@ -443,10 +448,8 @@ def show_team(chat_id):
             last_group = group
         actions = types.InlineKeyboardMarkup()
         if role == "Майстер":
-            message = f"Добрий день! Хочу записатися до {name}."
-            admin_url = f"{ADMIN_LINK}?text={quote(message)}"
             actions.add(types.InlineKeyboardButton(
-                "Записатися до майстра", url=admin_url))
+                "Записатися до майстра", callback_data=f"team:book:{index}"))
         else:
             actions.add(types.InlineKeyboardButton(
                 "Зв'язатися з адміністратором", url=ADMIN_LINK))
@@ -454,6 +457,27 @@ def show_team(chat_id):
             bot.send_photo(chat_id, photo,
                            caption=f"<b>{html.escape(name)}</b> · {role}",
                            reply_markup=actions)
+
+
+
+@bot.callback_query_handler(func=lambda call: bool(call.data and call.data.startswith("team:book:")))
+def book_team_member(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    try:
+        index = int(call.data.rsplit(":", 1)[1])
+        name, role, _ = TEAM_MEMBERS[index]
+        if role != "Майстер":
+            raise ValueError("Not a master")
+    except (ValueError, IndexError):
+        bot.answer_callback_query(call.id, "Відкрийте розділ «Наша команда» ще раз.")
+        return
+    bot.answer_callback_query(call.id)
+    chat_id = call.message.chat.id
+    flows[chat_id] = {"kind": "booking", "step": 0, "data": {}, "master": name}
+    section[chat_id] = "team_booking"
+    bot.send_message(chat_id, f"Ви обрали майстра <b>{html.escape(name)}</b>.\n\nНа яку послугу хочете записатися?", reply_markup=keyboard([[CANCEL, HOME]]))
 
 
 def prices(chat_id):
@@ -581,7 +605,7 @@ def complete(chat_id, message, flow):
                 f"Послуга: {html.escape(data['service'])}\nКоли: {html.escape(data['when'])}\n"
                 f"Telegram: {identity}")
         if flow.get("master"):
-            text += f"\nБажаний майстер: {html.escape(flow['master'])}"
+            text += f"\nОбраний майстер: {html.escape(flow['master'])}"
     else:
         text = ("<b>Нове замовлення EG by Gromova</b>\n"
                 f"{cart_text(chat_id)}\n\n"
@@ -607,7 +631,7 @@ def complete(chat_id, message, flow):
 
 def collect(chat_id, message, text):
     flow = flows[chat_id]
-    fields = ORDER_FIELDS if flow["kind"] == "order" else BOOK_FIELDS
+    fields = ORDER_FIELDS if flow["kind"] == "order" else (TEAM_BOOK_FIELDS if flow.get("master") else BOOK_FIELDS)
     if flow["step"] >= len(fields):
         bot.send_message(chat_id, "Натисніть «Повторити надсилання» або «Скасувати».")
         return
@@ -670,7 +694,7 @@ def dispatch(message):
         return
     if text == "Повторити надсилання" and chat_id in flows:
         flow = flows[chat_id]
-        fields = ORDER_FIELDS if flow["kind"] == "order" else BOOK_FIELDS
+        fields = ORDER_FIELDS if flow["kind"] == "order" else (TEAM_BOOK_FIELDS if flow.get("master") else BOOK_FIELDS)
         if flow["step"] == len(fields):
             complete(chat_id, message, flow)
         else:
