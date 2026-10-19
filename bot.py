@@ -38,6 +38,7 @@ SHOP = "Магазин косметики"
 CART = "🧺 Кошик"
 CONTACT = "Зв'язатися з адміністратором"
 PRICE = "Прайс салону"
+TEAM = "👥 Наша команда"
 WINDOWS = "Найближчі вільні вікна"
 HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
@@ -134,7 +135,7 @@ def menu(chat_id):
 def salon(chat_id):
     section[chat_id] = "salon"
     bot.send_message(chat_id, "Салон на Оболоні, Київ, Прирічна 27Е. Що вас цікавить?",
-                     reply_markup=keyboard([[PRICE], [WINDOWS], [BOOK], [CONTACT], [HOME]]))
+                     reply_markup=keyboard([[PRICE], [WINDOWS], [BOOK], [TEAM], [CONTACT], [HOME]]))
 
 # Manually confirmed availability; never infer extra openings from an empty day.
 WINDOWS_UPDATED = "17.10.2026"
@@ -410,6 +411,69 @@ def windows_callback(call):
             raise
 
 
+
+# Photos supplied and approved by the salon owner. Keep originals unaltered except size.
+# Order: director, administrators, masters.
+TEAM_MEMBERS = [
+    ("Олена Громова", "Керівник", "images/team/01_olena_gromova.jpg"),
+    ("Вікторія П'ятницька", "Адміністратор", "images/team/02_viktoriia_piatnytska.jpg"),
+    ("Марина Мартиненко", "Адміністратор", "images/team/03_maryna_martynenko.jpg"),
+    ("Крістіна Сталоверова", "Майстер", "images/team/04_krystina_staloverova.jpg"),
+    ("Крістіна Кожевнікова", "Майстер", "images/team/05_krystina_kozhevnikova.jpg"),
+    ("Альона Мясникова", "Майстер", "images/team/06_alona_miasnykova.jpg"),
+    ("Альона Міхайлішина", "Майстер", "images/team/07_alona_mikhailishyna.jpg"),
+    ("Оля Молочко", "Майстер", "images/team/08_olia_molochko.jpg"),
+    ("Оля Алексєєва", "Майстер", "images/team/09_olia_alekseeva.jpg"),
+    ("Марина Тріщук", "Майстер", "images/team/10_maryna_trishchuk.jpg"),
+]
+
+
+def show_team(chat_id):
+    """Show the existing labelled photos in the owner's requested order."""
+    flows.pop(chat_id, None)
+    section[chat_id] = "team"
+    bot.send_message(chat_id, "Наша команда Space of Beauty by Gromova:",
+                     reply_markup=keyboard([[BACK, HOME]]))
+    last_group = None
+    for index, (name, role, path) in enumerate(TEAM_MEMBERS):
+        group = "Керівник" if index == 0 else ("Адміністратори" if index < 3 else "Майстри")
+        if group != last_group:
+            bot.send_message(chat_id, f"<b>{group}</b>")
+            last_group = group
+        actions = types.InlineKeyboardMarkup()
+        if role == "Майстер":
+            actions.add(types.InlineKeyboardButton(
+                "Записатися до майстра", callback_data=f"team:book:{index}"))
+        else:
+            actions.add(types.InlineKeyboardButton(
+                "Зв'язатися з адміністратором", url=ADMIN_LINK))
+        with (BASE_DIR / path).open("rb") as photo:
+            bot.send_photo(chat_id, photo,
+                           caption=f"<b>{html.escape(name)}</b> · {role}",
+                           reply_markup=actions)
+
+
+@bot.callback_query_handler(func=lambda call: bool(call.data and call.data.startswith("team:book:")))
+def book_team_member(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    try:
+        index = int(call.data.rsplit(":", 1)[1])
+        name, role, _ = TEAM_MEMBERS[index]
+        if role != "Майстер":
+            raise ValueError("Not a master")
+    except (ValueError, IndexError):
+        bot.answer_callback_query(call.id, "Відкрийте розділ «Наша команда» ще раз.")
+        return
+    bot.answer_callback_query(call.id)
+    chat_id = call.message.chat.id
+    begin_flow(chat_id, "booking")
+    flows[chat_id]["master"] = name
+    bot.send_message(chat_id, f"Запис до майстра: <b>{html.escape(name)}</b>. "
+                             "Заповніть коротку заявку, і адміністратор узгодить час.")
+
+
 def prices(chat_id):
     section[chat_id] = "price"
     bot.send_message(chat_id, "Оберіть послугу. Ціни орієнтовні, точну вартість уточнюємо після консультації.",
@@ -534,6 +598,8 @@ def complete(chat_id, message, flow):
                 f"Клієнт: {html.escape(data['name'])}\nТелефон: {html.escape(data['phone'])}\n"
                 f"Послуга: {html.escape(data['service'])}\nКоли: {html.escape(data['when'])}\n"
                 f"Telegram: {identity}")
+        if flow.get("master"):
+            text += f"\nБажаний майстер: {html.escape(flow['master'])}"
     else:
         text = ("<b>Нове замовлення EG by Gromova</b>\n"
                 f"{cart_text(chat_id)}\n\n"
@@ -615,7 +681,7 @@ def dispatch(message):
             catalog(chat_id, product_category.get(selection.get(chat_id), HOME_CARE))
         elif current == "catalog":
             shop(chat_id)
-        elif current in ("price", "haircut", "windows"):
+        elif current in ("price", "haircut", "windows", "team"):
             salon(chat_id)
         else:
             menu(chat_id)
@@ -637,6 +703,8 @@ def dispatch(message):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("Перейти до каналу про сивину", url=GRAY_CHANNEL_URL))
         bot.send_message(chat_id, "Маєте запитання про сивину або техніку GRAY FUSION? У нашому каналі розповідаємо про сивину, догляд та показуємо приклади робіт.", reply_markup=markup)
+    elif text == TEAM:
+        show_team(chat_id)
     elif text == WINDOWS:
         show_windows(chat_id)
     elif text == PRICE:
