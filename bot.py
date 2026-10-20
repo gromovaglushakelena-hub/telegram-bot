@@ -307,11 +307,11 @@ def window_date_label(day):
 
 def available_windows(today=None):
     today = today or datetime.now(ZoneInfo("Europe/Kyiv")).date()
-    first, last = today + timedelta(days=1), today + timedelta(days=14)
+    first = today + timedelta(days=1)
     slots = {}
 
     def eligible(day):
-        return first <= day <= last
+        return day >= first
 
     def add(day, hour, service):
         choices = slots.setdefault((day, hour), [])
