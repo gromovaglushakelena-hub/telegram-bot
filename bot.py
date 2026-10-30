@@ -219,10 +219,9 @@ def salon(chat_id):
                      reply_markup=keyboard([[SALON_INTRO], [PRICE], [WINDOWS], [BOOK], [TEAM], [CONTACT], [HOME]]))
 
 # Manually confirmed availability; never infer extra openings from an empty day.
-WINDOWS_UPDATED = "29.10.2026"
+WINDOWS_UPDATED = "30.10.2026"
 WINDOW_SERVICES = {
     "GRAY FUSION": {
-        "2026-10-30": ["10:00"],
         "2026-10-31": ["12:30"],
         "2026-11-01": ["15:00"],
         "2026-11-02": ["10:00"],
@@ -236,8 +235,7 @@ WINDOW_SERVICES = {
         "2026-11-10": ["14:30"]
     },
     "камуфляж / тонування": {
-        "2026-10-30": ["10:00"],
-        "2026-10-31": ["10:00"],
+        "2026-10-31": ["12:00"],
         "2026-11-01": ["15:00"],
         "2026-11-02": ["10:00"],
         "2026-11-03": ["10:00"],
@@ -250,7 +248,7 @@ WINDOW_SERVICES = {
         "2026-11-10": ["14:30"]
     },
     "жіноча стрижка": {
-        "2026-10-30": ["11:00"],
+        "2026-10-31": ["12:00"],
         "2026-11-03": ["10:00"],
         "2026-11-04": ["10:00"],
         "2026-11-06": ["10:00"],
@@ -259,7 +257,7 @@ WINDOW_SERVICES = {
         "2026-11-10": ["13:00"]
     },
     "чоловіча стрижка": {
-        "2026-10-30": ["11:00"],
+        "2026-10-31": ["12:00"],
         "2026-11-03": ["10:00"],
         "2026-11-04": ["10:00"],
         "2026-11-06": ["10:00"],
@@ -268,7 +266,6 @@ WINDOW_SERVICES = {
         "2026-11-10": ["13:00"]
     },
     "реконструкція 8D": {
-        "2026-10-30": ["10:00"],
         "2026-10-31": ["10:30"],
         "2026-11-01": ["15:00"],
         "2026-11-02": ["10:00"],
@@ -300,10 +297,11 @@ def window_date_label(day):
 def available_windows(today=None):
     today = today or datetime.now(ZoneInfo("Europe/Kyiv")).date()
     first = today + timedelta(days=1)
+    last = today + timedelta(days=14)
     slots = {}
 
     def eligible(day):
-        return day >= first
+        return first <= day <= last
 
     def add(day, hour, service):
         choices = slots.setdefault((day, hour), [])
@@ -313,8 +311,7 @@ def available_windows(today=None):
     for service, days in WINDOW_SERVICES.items():
         for day_text, hours in days.items():
             day = date.fromisoformat(day_text)
-            # Show the full confirmed list for camouflage and toning.
-            if day >= first and (service == "камуфляж / тонування" or eligible(day)):
+            if eligible(day):
                 for hour in hours:
                     add(day, hour, service)
     for start_text, start_hour, end_text, end_hour in DARK_WINDOW_PAIRS:
