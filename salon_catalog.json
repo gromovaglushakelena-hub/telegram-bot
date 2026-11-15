@@ -96,5 +96,26 @@
     "source": "Система салонного ухода(1).pdf",
     "price": 2500,
     "volume_ml": 1000
+  },
+  "Шампунь EG «Очищення», 1000 мл": {
+    "title": "Шампунь EG «Очищення», 1000 мл",
+    "description": "Професійний салонний догляд. Об'єм: 1000 мл.",
+    "price": 2000,
+    "volume_ml": 1000,
+    "photo": "images/eg/shampoo-clean.jpg"
+  },
+  "Шампунь EG «Баланс», 1000 мл": {
+    "title": "Шампунь EG «Баланс», 1000 мл",
+    "description": "Професійний салонний догляд. Об'єм: 1000 мл.",
+    "price": 2000,
+    "volume_ml": 1000,
+    "photo": "images/eg/shampoo-balance.jpg"
+  },
+  "Кондиціонер EG, 1000 мл": {
+    "title": "Кондиціонер EG, 1000 мл",
+    "description": "Професійний салонний догляд. Об'єм: 1000 мл.",
+    "price": 2000,
+    "volume_ml": 1000,
+    "photo": "images/eg/conditioner.jpg"
   }
 }
