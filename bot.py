@@ -57,27 +57,38 @@ REMOVE = "Прибрати товар"
 # Only a confirmed price is shown. The administrator confirms all other
 # prices, volumes and stock before taking payment.
 PRODUCTS = {
-    "Шампунь EG №1 Очищення, 400 мл": 1000,
-    "Шампунь EG №2 Баланс, 400 мл": 1000,
-    "Зволожувальний бальзам EG, 250 мл": 1000,
-    "Кондиціонер EG, 400 мл": 1000,
-    "Відновлювальний спрей EG, 250 мл": 1000,
-    "Термозахист EG, 100 мл": 900,
+    "Шампунь EG №1 Очищення, 400 мл": 1200,
+    "Шампунь EG №2 Баланс, 400 мл": 1200,
+    "Зволожувальний бальзам EG, 250 мл": 1200,
+    "Кондиціонер EG, 400 мл": 1200,
+    "Відновлювальний спрей EG, 250 мл": 1200,
+    "Термозахист EG, 100 мл": 1200,
     "Маска EG Step 1 — ліпідна, 250 мл": 1200,
     "Маска EG Step 2 — амінокератинова, 250 мл": 1200,
     "Маска EG Step 3 — протеїнова, 250 мл": 1200,
     "Тонуюча маска by Gromova, 250 мл": 1000,
-    "Олія EG для освітлення": 2100,
     "Color Box для прикореневої зони, 60 мл": 1800,
     "Color Box для довжини": 3500,
 }
 for name, details in SALON_DETAILS.items():
     PRODUCTS[name] = details.get("price", PRODUCTS.get(name))
+HOME_PRODUCTS = [
+    "Маска EG Step 1 — ліпідна, 250 мл",
+    "Маска EG Step 2 — амінокератинова, 250 мл",
+    "Маска EG Step 3 — протеїнова, 250 мл",
+    "Зволожувальний бальзам EG, 250 мл",
+    "Відновлювальний спрей EG, 250 мл",
+    "Шампунь EG №1 Очищення, 400 мл",
+    "Шампунь EG №2 Баланс, 400 мл",
+    "Кондиціонер EG, 400 мл",
+    "Термозахист EG, 100 мл",
+]
 CATEGORIES = {
-    HOME_CARE: [name for name in PRODUCTS if not name.startswith("Color Box") and name not in SALON_DETAILS],
+    HOME_CARE: HOME_PRODUCTS,
     COLOR_BOX: [name for name in PRODUCTS if name.startswith("Color Box")],
     PRO_CARE: list(SALON_DETAILS),
 }
+
 product_category = {name: category for category, names in CATEGORIES.items() for name in names}
 SERVICES = {
     "GRAY FUSION — робота із сивиною":
