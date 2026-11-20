@@ -42,9 +42,10 @@ USER_DB_PATH = Path(os.getenv("USER_DB_PATH", str(DATA_DIR / "users.sqlite3")))
 DB_LOCK = threading.Lock()
 pending_broadcasts = {}
 
-PRIVACY_NOTICE = (
-    "Під час використання бот зберігає технічні дані, потрібні для роботи сервісу "
-    "та внутрішньої статистики. Деталі: /privacy"
+ENTRY_NOTICE = (
+    "<b>Бажаєте увійти до бота?</b>\n\n"
+    "Натискаючи «Так, увійти», ви погоджуєтесь з обробкою технічних даних "
+    "для роботи бота та внутрішньої статистики. Деталі: /privacy"
 )
 
 PRIVACY_TEXT = (
@@ -99,7 +100,8 @@ def init_user_db():
                     is_master INTEGER NOT NULL DEFAULT 0,
                     opted_out INTEGER NOT NULL DEFAULT 0,
                     blocked INTEGER NOT NULL DEFAULT 0,
-                    interactions INTEGER NOT NULL DEFAULT 0
+                    interactions INTEGER NOT NULL DEFAULT 0,
+                    consent_at TEXT
                 );
                 CREATE TABLE IF NOT EXISTS events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,6 +112,9 @@ def init_user_db():
                 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
                 CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id);
             """)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
+            if "consent_at" not in columns:
+                conn.execute("ALTER TABLE users ADD COLUMN consent_at TEXT")
             conn.execute("DELETE FROM events WHERE chat_id = ?", (ADMIN_CHAT_ID,))
             conn.execute("DELETE FROM users WHERE chat_id = ?", (ADMIN_CHAT_ID,))
 
@@ -165,6 +170,15 @@ def track_callback(call, event=None, client=False, master=False):
     if not call or not call.message or call.message.chat.type != "private":
         return
     register_user(call.message.chat.id, call.from_user, event, client, master)
+
+
+def set_consent(chat_id):
+    with DB_LOCK:
+        with db_connect() as conn:
+            conn.execute(
+                "UPDATE users SET consent_at = COALESCE(consent_at, ?), last_seen = ? WHERE chat_id = ?",
+                (now_iso(), now_iso(), int(chat_id)),
+            )
 
 
 def set_role(chat_id, role):
@@ -489,6 +503,17 @@ def show_salon_intro(chat_id):
     )
     markup.add(types.InlineKeyboardButton("🏠 Головне меню", callback_data="salon_intro:home"))
     bot.send_message(chat_id, SALON_INTRO_TEXT, reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "enter:yes")
+def enter_bot(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    register_user(call.message.chat.id, call.from_user, event="start")
+    set_consent(call.message.chat.id)
+    bot.answer_callback_query(call.id, "Готово")
+    menu(call.message.chat.id)
 
 
 @bot.callback_query_handler(func=lambda call: bool(call.data and call.data.startswith("role:")))
@@ -961,16 +986,15 @@ def show_training(chat_id):
 def start(message):
     if message.chat.type != "private":
         return
-    track_message(message, event="start")
     flows.pop(message.chat.id, None)
-    bot.send_message(message.chat.id, PRIVACY_NOTICE)
-    menu(message.chat.id)
+    actions = types.InlineKeyboardMarkup()
+    actions.add(types.InlineKeyboardButton("Так, увійти", callback_data="enter:yes"))
+    bot.send_message(message.chat.id, ENTRY_NOTICE, reply_markup=actions)
 
 @bot.message_handler(commands=["privacy"])
 def privacy_info(message):
     if message.chat.type != "private":
         return
-    track_message(message)
     bot.send_message(message.chat.id, PRIVACY_TEXT, disable_web_page_preview=True)
 
 
