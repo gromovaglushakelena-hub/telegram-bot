@@ -89,6 +89,8 @@ def init_user_db():
                 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
                 CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id);
             """)
+            conn.execute("DELETE FROM events WHERE chat_id = ?", (ADMIN_CHAT_ID,))
+            conn.execute("DELETE FROM users WHERE chat_id = ?", (ADMIN_CHAT_ID,))
 
 
 def now_iso():
@@ -96,6 +98,8 @@ def now_iso():
 
 
 def register_user(chat_id, user=None, event=None, client=False, master=False):
+    if int(chat_id) == ADMIN_CHAT_ID:
+        return
     username = getattr(user, "username", None) if user else None
     first_name = getattr(user, "first_name", None) if user else None
     last_name = getattr(user, "last_name", None) if user else None
@@ -266,11 +270,11 @@ def stats_text():
 def broadcast_worker(admin_chat_id, segment, body):
     rows = recipient_rows(segment)
     sent = failed = blocked = 0
-    message = body + "\n\nЩоб не отримувати розсилки від бота: /unsubscribe"
+    message = html.escape(body) + "\n\nЩоб не отримувати розсилки від бота: /unsubscribe"
     for row in rows:
         chat_id = int(row["chat_id"])
         try:
-            bot.send_message(chat_id, message, parse_mode=None, disable_web_page_preview=True)
+            bot.send_message(chat_id, message, disable_web_page_preview=True)
             sent += 1
         except Exception as exc:
             failed += 1
