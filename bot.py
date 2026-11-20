@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import re
+import sqlite3
+import threading
 import time
 from collections import Counter
 from datetime import date, datetime, timedelta
@@ -30,6 +32,264 @@ with (BASE_DIR / "eg_catalog.json").open(encoding="utf-8") as catalog_file:
 with (BASE_DIR / "salon_catalog.json").open(encoding="utf-8") as catalog_file:
     SALON_DETAILS = json.load(catalog_file)
 PRODUCT_DETAILS.update(SALON_DETAILS)
+
+
+# User analytics and mailing database.
+# USER_DB_PATH can point to a persistent Render disk when one is attached.
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+USER_DB_PATH = Path(os.getenv("USER_DB_PATH", str(DATA_DIR / "users.sqlite3")))
+DB_LOCK = threading.Lock()
+pending_broadcasts = {}
+
+EVENT_LABELS = {
+    "start": "Запустили бот",
+    "salon": "Салон",
+    "training": "Навчання GRAY FUSION",
+    "gray_channel": "Канал про сивину",
+    "windows": "Вільні вікна",
+    "price": "Прайс",
+    "booking": "Запис / консультація",
+    "shop": "Магазин",
+    "pro_care": "Для салонів краси",
+    "cart": "Кошик",
+    "contact": "Адміністратор",
+}
+
+
+def db_connect():
+    conn = sqlite3.connect(str(USER_DB_PATH), timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_user_db():
+    with DB_LOCK:
+        with db_connect() as conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS users (
+                    chat_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    is_client INTEGER NOT NULL DEFAULT 0,
+                    is_master INTEGER NOT NULL DEFAULT 0,
+                    opted_out INTEGER NOT NULL DEFAULT 0,
+                    blocked INTEGER NOT NULL DEFAULT 0,
+                    interactions INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chat_id INTEGER NOT NULL,
+                    event TEXT NOT NULL,
+                    ts TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
+                CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id);
+            """)
+
+
+def now_iso():
+    return datetime.now(ZoneInfo("Europe/Kyiv")).isoformat(timespec="seconds")
+
+
+def register_user(chat_id, user=None, event=None, client=False, master=False):
+    username = getattr(user, "username", None) if user else None
+    first_name = getattr(user, "first_name", None) if user else None
+    last_name = getattr(user, "last_name", None) if user else None
+    ts = now_iso()
+    with DB_LOCK:
+        with db_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO users (
+                    chat_id, username, first_name, last_name, first_seen, last_seen,
+                    is_client, is_master, blocked, interactions
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+                ON CONFLICT(chat_id) DO UPDATE SET
+                    username = COALESCE(excluded.username, users.username),
+                    first_name = COALESCE(excluded.first_name, users.first_name),
+                    last_name = COALESCE(excluded.last_name, users.last_name),
+                    last_seen = excluded.last_seen,
+                    is_client = MAX(users.is_client, excluded.is_client),
+                    is_master = MAX(users.is_master, excluded.is_master),
+                    blocked = 0,
+                    interactions = users.interactions + 1
+                """,
+                (
+                    int(chat_id), username, first_name, last_name, ts, ts,
+                    int(bool(client)), int(bool(master)),
+                ),
+            )
+            if event:
+                conn.execute(
+                    "INSERT INTO events (chat_id, event, ts) VALUES (?, ?, ?)",
+                    (int(chat_id), event, ts),
+                )
+
+
+def track_message(message, event=None, client=False, master=False):
+    if not message or message.chat.type != "private":
+        return
+    register_user(message.chat.id, message.from_user, event, client, master)
+
+
+def track_callback(call, event=None, client=False, master=False):
+    if not call or not call.message or call.message.chat.type != "private":
+        return
+    register_user(call.message.chat.id, call.from_user, event, client, master)
+
+
+def set_role(chat_id, role):
+    if role not in ("client", "master"):
+        return
+    with DB_LOCK:
+        with db_connect() as conn:
+            if role == "client":
+                conn.execute(
+                    "UPDATE users SET is_client = 1, last_seen = ? WHERE chat_id = ?",
+                    (now_iso(), int(chat_id)),
+                )
+            else:
+                conn.execute(
+                    "UPDATE users SET is_master = 1, last_seen = ? WHERE chat_id = ?",
+                    (now_iso(), int(chat_id)),
+                )
+
+
+def user_has_segment(chat_id):
+    with DB_LOCK:
+        with db_connect() as conn:
+            row = conn.execute(
+                "SELECT is_client, is_master FROM users WHERE chat_id = ?",
+                (int(chat_id),),
+            ).fetchone()
+    return bool(row and (row["is_client"] or row["is_master"]))
+
+
+def set_opt_out(chat_id, opted_out):
+    with DB_LOCK:
+        with db_connect() as conn:
+            conn.execute(
+                "UPDATE users SET opted_out = ?, last_seen = ? WHERE chat_id = ?",
+                (int(bool(opted_out)), now_iso(), int(chat_id)),
+            )
+
+
+def mark_blocked(chat_id):
+    with DB_LOCK:
+        with db_connect() as conn:
+            conn.execute(
+                "UPDATE users SET blocked = 1 WHERE chat_id = ?",
+                (int(chat_id),),
+            )
+
+
+def recipient_rows(segment):
+    where = ["opted_out = 0", "blocked = 0"]
+    if segment == "clients":
+        where.append("is_client = 1")
+    elif segment == "masters":
+        where.append("is_master = 1")
+    elif segment == "both":
+        where.extend(["is_client = 1", "is_master = 1"])
+    elif segment != "all":
+        return []
+    query = "SELECT chat_id FROM users WHERE " + " AND ".join(where) + " ORDER BY chat_id"
+    with DB_LOCK:
+        with db_connect() as conn:
+            return conn.execute(query).fetchall()
+
+
+def stats_text():
+    now = datetime.now(ZoneInfo("Europe/Kyiv"))
+    week = (now - timedelta(days=7)).isoformat(timespec="seconds")
+    month = (now - timedelta(days=30)).isoformat(timespec="seconds")
+    today = now.date().isoformat()
+    with DB_LOCK:
+        with db_connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN is_client = 1 THEN 1 ELSE 0 END) AS clients,
+                    SUM(CASE WHEN is_master = 1 THEN 1 ELSE 0 END) AS masters,
+                    SUM(CASE WHEN is_client = 1 AND is_master = 1 THEN 1 ELSE 0 END) AS both_roles,
+                    SUM(CASE WHEN is_client = 0 AND is_master = 0 THEN 1 ELSE 0 END) AS unknown_role,
+                    SUM(CASE WHEN opted_out = 1 THEN 1 ELSE 0 END) AS opted_out,
+                    SUM(CASE WHEN blocked = 1 THEN 1 ELSE 0 END) AS blocked,
+                    SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) AS active_7,
+                    SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) AS active_30,
+                    SUM(CASE WHEN substr(first_seen, 1, 10) = ? THEN 1 ELSE 0 END) AS new_today,
+                    SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END) AS new_7
+                FROM users
+                """,
+                (week, month, today, week),
+            ).fetchone()
+            top = conn.execute(
+                """
+                SELECT event, COUNT(*) AS qty
+                FROM events
+                WHERE ts >= ?
+                GROUP BY event
+                ORDER BY qty DESC
+                LIMIT 8
+                """,
+                (month,),
+            ).fetchall()
+    lines = [
+        "<b>Статистика Telegram-бота</b>",
+        "",
+        f"Усього користувачів: <b>{row['total'] or 0}</b>",
+        f"Клієнти / інтерес до салону: <b>{row['clients'] or 0}</b>",
+        f"Майстри / інтерес до навчання: <b>{row['masters'] or 0}</b>",
+        f"І клієнти, і майстри: <b>{row['both_roles'] or 0}</b>",
+        f"Ще не визначені: <b>{row['unknown_role'] or 0}</b>",
+        "",
+        f"Нові сьогодні: <b>{row['new_today'] or 0}</b>",
+        f"Нові за 7 днів: <b>{row['new_7'] or 0}</b>",
+        f"Активні за 7 днів: <b>{row['active_7'] or 0}</b>",
+        f"Активні за 30 днів: <b>{row['active_30'] or 0}</b>",
+        f"Відмовилися від розсилок: <b>{row['opted_out'] or 0}</b>",
+        f"Заблокували бот: <b>{row['blocked'] or 0}</b>",
+    ]
+    if top:
+        lines.extend(["", "<b>Що відкривали за 30 днів:</b>"])
+        for item in top:
+            label = EVENT_LABELS.get(item["event"], item["event"])
+            lines.append(f"• {html.escape(label)} — {item['qty']}")
+    return "\n".join(lines)
+
+
+def broadcast_worker(admin_chat_id, segment, body):
+    rows = recipient_rows(segment)
+    sent = failed = blocked = 0
+    message = body + "\n\nЩоб не отримувати розсилки від бота: /unsubscribe"
+    for row in rows:
+        chat_id = int(row["chat_id"])
+        try:
+            bot.send_message(chat_id, message, parse_mode=None, disable_web_page_preview=True)
+            sent += 1
+        except Exception as exc:
+            failed += 1
+            code = getattr(exc, "error_code", None)
+            lowered = str(exc).lower()
+            if code == 403 or "blocked" in lowered or "forbidden" in lowered:
+                mark_blocked(chat_id)
+                blocked += 1
+        time.sleep(0.05)
+    bot.send_message(
+        admin_chat_id,
+        "<b>Розсилка завершена</b>\n"
+        f"Надіслано: {sent}\n"
+        f"Не доставлено: {failed}\n"
+        f"Заблокували бот: {blocked}",
+    )
+
+
+init_user_db()
 
 HOME = "🏠 Головне меню"
 BACK = "⬅️ Назад"
@@ -206,6 +466,23 @@ def show_salon_intro(chat_id):
     bot.send_message(chat_id, SALON_INTRO_TEXT, reply_markup=markup)
 
 
+@bot.callback_query_handler(func=lambda call: bool(call.data and call.data.startswith("role:")))
+def role_callback(call):
+    if not call.message or call.message.chat.type != "private":
+        bot.answer_callback_query(call.id)
+        return
+    role = call.data.partition(":")[2]
+    if role not in ("client", "master"):
+        bot.answer_callback_query(call.id)
+        return
+    track_callback(call, event="salon" if role == "client" else "training",
+                   client=role == "client", master=role == "master")
+    set_role(call.message.chat.id, role)
+    bot.answer_callback_query(call.id, "Збережено")
+    label = "клієнт салону" if role == "client" else "майстер / колорист"
+    bot.send_message(call.message.chat.id, "Дякуємо. Позначили вас як " + label + ".")
+
+
 @bot.callback_query_handler(func=lambda call: call.data == "salon_intro:home")
 def salon_intro_home(call):
     if not call.message or call.message.chat.type != "private":
@@ -221,6 +498,7 @@ def salon_intro_booking(call):
     if not call.message or call.message.chat.type != "private":
         bot.answer_callback_query(call.id)
         return
+    track_callback(call, event="booking", client=True)
     bot.answer_callback_query(call.id)
     begin_flow(call.message.chat.id, "booking")
 
@@ -371,6 +649,7 @@ def windows_callback(call):
     if not call.message or call.message.chat.type != "private":
         bot.answer_callback_query(call.id)
         return
+    track_callback(call, event="windows", client=True)
     value = call.data.partition(":")[2]
     if value != "list" and (not value.isdigit() or not 0 <= int(value) < len(WINDOW_FILTERS)):
         bot.answer_callback_query(call.id, "Відкрийте розділ вільних вікон ще раз.")
@@ -657,12 +936,118 @@ def show_training(chat_id):
 def start(message):
     if message.chat.type != "private":
         return
+    track_message(message, event="start")
     flows.pop(message.chat.id, None)
+    if not user_has_segment(message.chat.id):
+        roles = types.InlineKeyboardMarkup()
+        roles.row(
+            types.InlineKeyboardButton("Я клієнт салону", callback_data="role:client"),
+            types.InlineKeyboardButton("Я майстер / колорист", callback_data="role:master"),
+        )
+        bot.send_message(
+            message.chat.id,
+            "Щоб ми показували вам релевантну інформацію, оберіть, хто ви. "
+            "Це також можна просто пропустити.",
+            reply_markup=roles,
+        )
     menu(message.chat.id)
 
 @bot.message_handler(commands=["id"])
 def show_id(message):
+    if message.chat.type != "private":
+        return
+    track_message(message)
     bot.send_message(message.chat.id, f"chat_id: <code>{message.chat.id}</code>")
+
+
+@bot.message_handler(commands=["stats"])
+def admin_stats(message):
+    if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
+        return
+    track_message(message)
+    bot.send_message(message.chat.id, stats_text())
+
+
+@bot.message_handler(commands=["broadcast"])
+def admin_broadcast(message):
+    if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
+        return
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3 or parts[1].lower() not in ("all", "clients", "masters", "both"):
+        bot.send_message(
+            message.chat.id,
+            "Формат:\n"
+            "<code>/broadcast clients Текст</code> — клієнтам\n"
+            "<code>/broadcast masters Текст</code> — майстрам\n"
+            "<code>/broadcast both Текст</code> — тим, хто в обох групах\n"
+            "<code>/broadcast all Текст</code> — усім",
+        )
+        return
+    segment = parts[1].lower()
+    body = parts[2].strip()
+    if not body or len(body) > 3500:
+        bot.send_message(message.chat.id, "Текст розсилки має бути від 1 до 3500 символів.")
+        return
+    count = len(recipient_rows(segment))
+    pending_broadcasts[message.chat.id] = {"segment": segment, "body": body}
+    labels = {
+        "all": "усім",
+        "clients": "клієнтам",
+        "masters": "майстрам",
+        "both": "клієнтам + майстрам",
+    }
+    bot.send_message(
+        message.chat.id,
+        "<b>Попередній перегляд розсилки</b>\n"
+        f"Кому: {labels[segment]}\n"
+        f"Отримувачів зараз: <b>{count}</b>\n\n"
+        + html.escape(body)
+        + "\n\nДля запуску: /confirm_broadcast\nСкасувати: /cancel_broadcast",
+    )
+
+
+@bot.message_handler(commands=["confirm_broadcast"])
+def confirm_broadcast(message):
+    if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
+        return
+    pending = pending_broadcasts.pop(message.chat.id, None)
+    if not pending:
+        bot.send_message(message.chat.id, "Немає підготовленої розсилки.")
+        return
+    count = len(recipient_rows(pending["segment"]))
+    bot.send_message(message.chat.id, f"Запускаю розсилку для {count} отримувачів.")
+    threading.Thread(
+        target=broadcast_worker,
+        args=(message.chat.id, pending["segment"], pending["body"]),
+        daemon=True,
+    ).start()
+
+
+@bot.message_handler(commands=["cancel_broadcast"])
+def cancel_broadcast(message):
+    if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
+        return
+    pending_broadcasts.pop(message.chat.id, None)
+    bot.send_message(message.chat.id, "Розсилку скасовано.")
+
+
+@bot.message_handler(commands=["unsubscribe"])
+def unsubscribe(message):
+    if message.chat.type != "private":
+        return
+    track_message(message)
+    set_opt_out(message.chat.id, True)
+    bot.send_message(message.chat.id, "Готово. Розсилки від бота більше не надходитимуть.")
+
+
+@bot.message_handler(commands=["subscribe"])
+def subscribe(message):
+    if message.chat.type != "private":
+        return
+    track_message(message)
+    set_opt_out(message.chat.id, False)
+    bot.send_message(message.chat.id, "Розсилки знову увімкнено.")
+
 
 @bot.message_handler(content_types=["text"])
 def dispatch(message):
@@ -670,6 +1055,7 @@ def dispatch(message):
         return
     chat_id = message.chat.id
     text = message.text.strip()
+    track_message(message)
     if text in (HOME, CANCEL):
         flows.pop(chat_id, None)
         menu(chat_id)
@@ -698,10 +1084,13 @@ def dispatch(message):
         collect(chat_id, message, text)
         return
     if text == SALON:
+        register_user(chat_id, message.from_user, event="salon", client=True)
         salon(chat_id)
     elif text == TRAINING:
+        register_user(chat_id, message.from_user, event="training", master=True)
         show_training(chat_id)
     elif text == GRAY_CHANNEL:
+        register_user(chat_id, message.from_user, event="gray_channel", client=True)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("Перейти до каналу про сивину", url=GRAY_CHANNEL_URL))
         bot.send_message(chat_id, "Маєте запитання про сивину або техніку GRAY FUSION? У нашому каналі розповідаємо про сивину, догляд та показуємо приклади робіт.", reply_markup=markup)
@@ -714,8 +1103,10 @@ def dispatch(message):
     elif text == TEAM:
         show_team(chat_id)
     elif text == WINDOWS:
+        register_user(chat_id, message.from_user, event="windows", client=True)
         show_windows(chat_id)
     elif text == PRICE:
+        register_user(chat_id, message.from_user, event="price", client=True)
         prices(chat_id)
     elif text in SERVICES:
         if text == "Реконструкція 8D by Gromova":
@@ -735,10 +1126,16 @@ def dispatch(message):
             markup.add(types.InlineKeyboardButton("Більше про сивину в нашому каналі", url=GRAY_CHANNEL_URL))
             bot.send_message(chat_id, "Відповіді на запитання про сивину та приклади робіт:", reply_markup=markup)
     elif text == BOOK:
+        register_user(chat_id, message.from_user, event="booking", client=True)
         begin_flow(chat_id, "booking")
     elif text == SHOP:
+        register_user(chat_id, message.from_user, event="shop", client=True)
         shop(chat_id)
     elif text in CATEGORIES:
+        if text == PRO_CARE:
+            register_user(chat_id, message.from_user, event="pro_care", master=True)
+        else:
+            register_user(chat_id, message.from_user, event="shop", client=True)
         catalog(chat_id, text)
     elif text in PRODUCTS:
         product(chat_id, text)
@@ -747,6 +1144,7 @@ def dispatch(message):
         bot.send_message(chat_id, "Додано. " + cart_text(chat_id),
                          reply_markup=keyboard([[CART], [BACK, HOME]]))
     elif text == CART:
+        register_user(chat_id, message.from_user, event="cart", client=True)
         cart(chat_id)
     elif text == REMOVE:
         items = carts.get(chat_id, [])
@@ -760,6 +1158,7 @@ def dispatch(message):
     elif text == CHECKOUT:
         begin_flow(chat_id, "order")
     elif text == CONTACT:
+        register_user(chat_id, message.from_user, event="contact", client=True)
         contact(chat_id)
     else:
         bot.send_message(chat_id, "Оберіть кнопку в меню або напишіть адміністратору.",
