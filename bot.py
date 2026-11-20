@@ -35,7 +35,21 @@ PRODUCT_DETAILS.update(SALON_DETAILS)
 
 
 # User analytics and mailing database.
-# USER_DB_PATH can point to a persistent Render disk when one is attached.
+# Primary storage is Neon Postgres via DATABASE_URL. SQLite is a local fallback only.
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USE_POSTGRES = bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "psycopg[binary]>=3.2,<4"])
+        import psycopg
+        from psycopg.rows import dict_row
+
 DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 USER_DB_PATH = Path(os.getenv("USER_DB_PATH", str(DATA_DIR / "users.sqlite3")))
@@ -63,7 +77,6 @@ PRIVACY_TEXT = (
     "З питань щодо даних можна звернутися до адміністратора: " + ADMIN_LINK
 )
 
-
 EVENT_LABELS = {
     "start": "Запустили бот",
     "salon": "Салон",
@@ -79,48 +92,88 @@ EVENT_LABELS = {
 }
 
 
-def db_connect():
+def sqlite_connect():
     conn = sqlite3.connect(str(USER_DB_PATH), timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
 
+def pg_connect():
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+
+
 def init_user_db():
     with DB_LOCK:
-        with db_connect() as conn:
-            conn.executescript("""
-                CREATE TABLE IF NOT EXISTS users (
-                    chat_id INTEGER PRIMARY KEY,
-                    username TEXT,
-                    first_name TEXT,
-                    last_name TEXT,
-                    first_seen TEXT NOT NULL,
-                    last_seen TEXT NOT NULL,
-                    is_client INTEGER NOT NULL DEFAULT 0,
-                    is_master INTEGER NOT NULL DEFAULT 0,
-                    opted_out INTEGER NOT NULL DEFAULT 0,
-                    blocked INTEGER NOT NULL DEFAULT 0,
-                    interactions INTEGER NOT NULL DEFAULT 0,
-                    consent_at TEXT
-                );
-                CREATE TABLE IF NOT EXISTS events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    chat_id INTEGER NOT NULL,
-                    event TEXT NOT NULL,
-                    ts TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
-                CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id);
-            """)
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
-            if "consent_at" not in columns:
-                conn.execute("ALTER TABLE users ADD COLUMN consent_at TEXT")
-            conn.execute("DELETE FROM events WHERE chat_id = ?", (ADMIN_CHAT_ID,))
-            conn.execute("DELETE FROM users WHERE chat_id = ?", (ADMIN_CHAT_ID,))
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        chat_id BIGINT PRIMARY KEY,
+                        username TEXT,
+                        first_name TEXT,
+                        last_name TEXT,
+                        first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        is_client BOOLEAN NOT NULL DEFAULT FALSE,
+                        is_master BOOLEAN NOT NULL DEFAULT FALSE,
+                        opted_out BOOLEAN NOT NULL DEFAULT FALSE,
+                        blocked BOOLEAN NOT NULL DEFAULT FALSE,
+                        interactions INTEGER NOT NULL DEFAULT 0,
+                        consent_at TIMESTAMPTZ
+                    )
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS events (
+                        id BIGSERIAL PRIMARY KEY,
+                        chat_id BIGINT NOT NULL REFERENCES users(chat_id) ON DELETE CASCADE,
+                        event TEXT NOT NULL,
+                        ts TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen)")
+                conn.execute("DELETE FROM events WHERE chat_id = %s", (ADMIN_CHAT_ID,))
+                conn.execute("DELETE FROM users WHERE chat_id = %s", (ADMIN_CHAT_ID,))
+        else:
+            with sqlite_connect() as conn:
+                conn.executescript("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        chat_id INTEGER PRIMARY KEY,
+                        username TEXT,
+                        first_name TEXT,
+                        last_name TEXT,
+                        first_seen TEXT NOT NULL,
+                        last_seen TEXT NOT NULL,
+                        is_client INTEGER NOT NULL DEFAULT 0,
+                        is_master INTEGER NOT NULL DEFAULT 0,
+                        opted_out INTEGER NOT NULL DEFAULT 0,
+                        blocked INTEGER NOT NULL DEFAULT 0,
+                        interactions INTEGER NOT NULL DEFAULT 0,
+                        consent_at TEXT
+                    );
+                    CREATE TABLE IF NOT EXISTS events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        chat_id INTEGER NOT NULL,
+                        event TEXT NOT NULL,
+                        ts TEXT NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
+                    CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id);
+                """)
+                columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
+                if "consent_at" not in columns:
+                    conn.execute("ALTER TABLE users ADD COLUMN consent_at TEXT")
+                conn.execute("DELETE FROM events WHERE chat_id = ?", (ADMIN_CHAT_ID,))
+                conn.execute("DELETE FROM users WHERE chat_id = ?", (ADMIN_CHAT_ID,))
+
+
+def now_dt():
+    return datetime.now(ZoneInfo("Europe/Kyiv"))
 
 
 def now_iso():
-    return datetime.now(ZoneInfo("Europe/Kyiv")).isoformat(timespec="seconds")
+    return now_dt().isoformat(timespec="seconds")
 
 
 def register_user(chat_id, user=None, event=None, client=False, master=False):
@@ -129,35 +182,65 @@ def register_user(chat_id, user=None, event=None, client=False, master=False):
     username = getattr(user, "username", None) if user else None
     first_name = getattr(user, "first_name", None) if user else None
     last_name = getattr(user, "last_name", None) if user else None
-    ts = now_iso()
+    ts = now_dt()
     with DB_LOCK:
-        with db_connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO users (
-                    chat_id, username, first_name, last_name, first_seen, last_seen,
-                    is_client, is_master, blocked, interactions
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
-                ON CONFLICT(chat_id) DO UPDATE SET
-                    username = COALESCE(excluded.username, users.username),
-                    first_name = COALESCE(excluded.first_name, users.first_name),
-                    last_name = COALESCE(excluded.last_name, users.last_name),
-                    last_seen = excluded.last_seen,
-                    is_client = MAX(users.is_client, excluded.is_client),
-                    is_master = MAX(users.is_master, excluded.is_master),
-                    blocked = 0,
-                    interactions = users.interactions + 1
-                """,
-                (
-                    int(chat_id), username, first_name, last_name, ts, ts,
-                    int(bool(client)), int(bool(master)),
-                ),
-            )
-            if event:
+        if USE_POSTGRES:
+            with pg_connect() as conn:
                 conn.execute(
-                    "INSERT INTO events (chat_id, event, ts) VALUES (?, ?, ?)",
-                    (int(chat_id), event, ts),
+                    """
+                    INSERT INTO users (
+                        chat_id, username, first_name, last_name, first_seen, last_seen,
+                        is_client, is_master, blocked, interactions
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE, 1)
+                    ON CONFLICT(chat_id) DO UPDATE SET
+                        username = COALESCE(EXCLUDED.username, users.username),
+                        first_name = COALESCE(EXCLUDED.first_name, users.first_name),
+                        last_name = COALESCE(EXCLUDED.last_name, users.last_name),
+                        last_seen = EXCLUDED.last_seen,
+                        is_client = users.is_client OR EXCLUDED.is_client,
+                        is_master = users.is_master OR EXCLUDED.is_master,
+                        blocked = FALSE,
+                        interactions = users.interactions + 1
+                    """,
+                    (
+                        int(chat_id), username, first_name, last_name, ts, ts,
+                        bool(client), bool(master),
+                    ),
                 )
+                if event:
+                    conn.execute(
+                        "INSERT INTO events (chat_id, event, ts) VALUES (%s, %s, %s)",
+                        (int(chat_id), event, ts),
+                    )
+        else:
+            iso = ts.isoformat(timespec="seconds")
+            with sqlite_connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO users (
+                        chat_id, username, first_name, last_name, first_seen, last_seen,
+                        is_client, is_master, blocked, interactions
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+                    ON CONFLICT(chat_id) DO UPDATE SET
+                        username = COALESCE(excluded.username, users.username),
+                        first_name = COALESCE(excluded.first_name, users.first_name),
+                        last_name = COALESCE(excluded.last_name, users.last_name),
+                        last_seen = excluded.last_seen,
+                        is_client = MAX(users.is_client, excluded.is_client),
+                        is_master = MAX(users.is_master, excluded.is_master),
+                        blocked = 0,
+                        interactions = users.interactions + 1
+                    """,
+                    (
+                        int(chat_id), username, first_name, last_name, iso, iso,
+                        int(bool(client)), int(bool(master)),
+                    ),
+                )
+                if event:
+                    conn.execute(
+                        "INSERT INTO events (chat_id, event, ts) VALUES (?, ?, ?)",
+                        (int(chat_id), event, iso),
+                    )
 
 
 def track_message(message, event=None, client=False, master=False):
@@ -173,111 +256,225 @@ def track_callback(call, event=None, client=False, master=False):
 
 
 def set_consent(chat_id):
+    if int(chat_id) == ADMIN_CHAT_ID:
+        return
+    ts = now_dt()
     with DB_LOCK:
-        with db_connect() as conn:
-            conn.execute(
-                "UPDATE users SET consent_at = COALESCE(consent_at, ?), last_seen = ? WHERE chat_id = ?",
-                (now_iso(), now_iso(), int(chat_id)),
-            )
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                conn.execute(
+                    "UPDATE users SET consent_at = COALESCE(consent_at, %s), last_seen = %s WHERE chat_id = %s",
+                    (ts, ts, int(chat_id)),
+                )
+        else:
+            iso = ts.isoformat(timespec="seconds")
+            with sqlite_connect() as conn:
+                conn.execute(
+                    "UPDATE users SET consent_at = COALESCE(consent_at, ?), last_seen = ? WHERE chat_id = ?",
+                    (iso, iso, int(chat_id)),
+                )
+
+
+def has_consent(chat_id):
+    if int(chat_id) == ADMIN_CHAT_ID:
+        return True
+    with DB_LOCK:
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                row = conn.execute(
+                    "SELECT consent_at FROM users WHERE chat_id = %s",
+                    (int(chat_id),),
+                ).fetchone()
+        else:
+            with sqlite_connect() as conn:
+                row = conn.execute(
+                    "SELECT consent_at FROM users WHERE chat_id = ?",
+                    (int(chat_id),),
+                ).fetchone()
+    return bool(row and row["consent_at"])
+
+
+def send_entry_prompt(chat_id):
+    actions = types.InlineKeyboardMarkup()
+    actions.add(types.InlineKeyboardButton("Так, увійти", callback_data="enter:yes"))
+    bot.send_message(chat_id, ENTRY_NOTICE, reply_markup=actions)
 
 
 def set_role(chat_id, role):
     if role not in ("client", "master"):
         return
+    ts = now_dt()
     with DB_LOCK:
-        with db_connect() as conn:
-            if role == "client":
-                conn.execute(
-                    "UPDATE users SET is_client = 1, last_seen = ? WHERE chat_id = ?",
-                    (now_iso(), int(chat_id)),
-                )
-            else:
-                conn.execute(
-                    "UPDATE users SET is_master = 1, last_seen = ? WHERE chat_id = ?",
-                    (now_iso(), int(chat_id)),
-                )
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                if role == "client":
+                    conn.execute(
+                        "UPDATE users SET is_client = TRUE, last_seen = %s WHERE chat_id = %s",
+                        (ts, int(chat_id)),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE users SET is_master = TRUE, last_seen = %s WHERE chat_id = %s",
+                        (ts, int(chat_id)),
+                    )
+        else:
+            iso = ts.isoformat(timespec="seconds")
+            with sqlite_connect() as conn:
+                if role == "client":
+                    conn.execute(
+                        "UPDATE users SET is_client = 1, last_seen = ? WHERE chat_id = ?",
+                        (iso, int(chat_id)),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE users SET is_master = 1, last_seen = ? WHERE chat_id = ?",
+                        (iso, int(chat_id)),
+                    )
 
 
 def user_has_segment(chat_id):
     with DB_LOCK:
-        with db_connect() as conn:
-            row = conn.execute(
-                "SELECT is_client, is_master FROM users WHERE chat_id = ?",
-                (int(chat_id),),
-            ).fetchone()
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                row = conn.execute(
+                    "SELECT is_client, is_master FROM users WHERE chat_id = %s",
+                    (int(chat_id),),
+                ).fetchone()
+        else:
+            with sqlite_connect() as conn:
+                row = conn.execute(
+                    "SELECT is_client, is_master FROM users WHERE chat_id = ?",
+                    (int(chat_id),),
+                ).fetchone()
     return bool(row and (row["is_client"] or row["is_master"]))
 
 
 def set_opt_out(chat_id, opted_out):
+    ts = now_dt()
     with DB_LOCK:
-        with db_connect() as conn:
-            conn.execute(
-                "UPDATE users SET opted_out = ?, last_seen = ? WHERE chat_id = ?",
-                (int(bool(opted_out)), now_iso(), int(chat_id)),
-            )
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                conn.execute(
+                    "UPDATE users SET opted_out = %s, last_seen = %s WHERE chat_id = %s",
+                    (bool(opted_out), ts, int(chat_id)),
+                )
+        else:
+            iso = ts.isoformat(timespec="seconds")
+            with sqlite_connect() as conn:
+                conn.execute(
+                    "UPDATE users SET opted_out = ?, last_seen = ? WHERE chat_id = ?",
+                    (int(bool(opted_out)), iso, int(chat_id)),
+                )
 
 
 def mark_blocked(chat_id):
     with DB_LOCK:
-        with db_connect() as conn:
-            conn.execute(
-                "UPDATE users SET blocked = 1 WHERE chat_id = ?",
-                (int(chat_id),),
-            )
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                conn.execute("UPDATE users SET blocked = TRUE WHERE chat_id = %s", (int(chat_id),))
+        else:
+            with sqlite_connect() as conn:
+                conn.execute("UPDATE users SET blocked = 1 WHERE chat_id = ?", (int(chat_id),))
 
 
 def recipient_rows(segment):
-    where = ["opted_out = 0", "blocked = 0"]
+    filters_pg = ["opted_out = FALSE", "blocked = FALSE", "consent_at IS NOT NULL"]
+    filters_sq = ["opted_out = 0", "blocked = 0", "consent_at IS NOT NULL"]
     if segment == "clients":
-        where.append("is_client = 1")
+        filters_pg.append("is_client = TRUE")
+        filters_sq.append("is_client = 1")
     elif segment == "masters":
-        where.append("is_master = 1")
+        filters_pg.append("is_master = TRUE")
+        filters_sq.append("is_master = 1")
     elif segment == "both":
-        where.extend(["is_client = 1", "is_master = 1"])
+        filters_pg.extend(["is_client = TRUE", "is_master = TRUE"])
+        filters_sq.extend(["is_client = 1", "is_master = 1"])
     elif segment != "all":
         return []
-    query = "SELECT chat_id FROM users WHERE " + " AND ".join(where) + " ORDER BY chat_id"
     with DB_LOCK:
-        with db_connect() as conn:
-            return conn.execute(query).fetchall()
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                return conn.execute(
+                    "SELECT chat_id FROM users WHERE " + " AND ".join(filters_pg) + " ORDER BY chat_id"
+                ).fetchall()
+        with sqlite_connect() as conn:
+            return conn.execute(
+                "SELECT chat_id FROM users WHERE " + " AND ".join(filters_sq) + " ORDER BY chat_id"
+            ).fetchall()
 
 
 def stats_text():
-    now = datetime.now(ZoneInfo("Europe/Kyiv"))
-    week = (now - timedelta(days=7)).isoformat(timespec="seconds")
-    month = (now - timedelta(days=30)).isoformat(timespec="seconds")
-    today = now.date().isoformat()
+    now = now_dt()
+    week = now - timedelta(days=7)
+    month = now - timedelta(days=30)
+    today = now.date()
     with DB_LOCK:
-        with db_connect() as conn:
-            row = conn.execute(
-                """
-                SELECT
-                    COUNT(*) AS total,
-                    SUM(CASE WHEN is_client = 1 THEN 1 ELSE 0 END) AS clients,
-                    SUM(CASE WHEN is_master = 1 THEN 1 ELSE 0 END) AS masters,
-                    SUM(CASE WHEN is_client = 1 AND is_master = 1 THEN 1 ELSE 0 END) AS both_roles,
-                    SUM(CASE WHEN is_client = 0 AND is_master = 0 THEN 1 ELSE 0 END) AS unknown_role,
-                    SUM(CASE WHEN opted_out = 1 THEN 1 ELSE 0 END) AS opted_out,
-                    SUM(CASE WHEN blocked = 1 THEN 1 ELSE 0 END) AS blocked,
-                    SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) AS active_7,
-                    SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) AS active_30,
-                    SUM(CASE WHEN substr(first_seen, 1, 10) = ? THEN 1 ELSE 0 END) AS new_today,
-                    SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END) AS new_7
-                FROM users
-                """,
-                (week, month, today, week),
-            ).fetchone()
-            top = conn.execute(
-                """
-                SELECT event, COUNT(*) AS qty
-                FROM events
-                WHERE ts >= ?
-                GROUP BY event
-                ORDER BY qty DESC
-                LIMIT 8
-                """,
-                (month,),
-            ).fetchall()
+        if USE_POSTGRES:
+            with pg_connect() as conn:
+                row = conn.execute(
+                    """
+                    SELECT
+                        COUNT(*) AS total,
+                        COUNT(*) FILTER (WHERE is_client) AS clients,
+                        COUNT(*) FILTER (WHERE is_master) AS masters,
+                        COUNT(*) FILTER (WHERE is_client AND is_master) AS both_roles,
+                        COUNT(*) FILTER (WHERE NOT is_client AND NOT is_master) AS unknown_role,
+                        COUNT(*) FILTER (WHERE opted_out) AS opted_out,
+                        COUNT(*) FILTER (WHERE blocked) AS blocked,
+                        COUNT(*) FILTER (WHERE last_seen >= %s) AS active_7,
+                        COUNT(*) FILTER (WHERE last_seen >= %s) AS active_30,
+                        COUNT(*) FILTER (WHERE first_seen::date = %s) AS new_today,
+                        COUNT(*) FILTER (WHERE first_seen >= %s) AS new_7
+                    FROM users
+                    WHERE consent_at IS NOT NULL
+                    """,
+                    (week, month, today, week),
+                ).fetchone()
+                top = conn.execute(
+                    """
+                    SELECT event, COUNT(*) AS qty
+                    FROM events
+                    WHERE ts >= %s
+                    GROUP BY event
+                    ORDER BY qty DESC
+                    LIMIT 8
+                    """,
+                    (month,),
+                ).fetchall()
+        else:
+            week_s = week.isoformat(timespec="seconds")
+            month_s = month.isoformat(timespec="seconds")
+            with sqlite_connect() as conn:
+                row = conn.execute(
+                    """
+                    SELECT
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN is_client = 1 THEN 1 ELSE 0 END) AS clients,
+                        SUM(CASE WHEN is_master = 1 THEN 1 ELSE 0 END) AS masters,
+                        SUM(CASE WHEN is_client = 1 AND is_master = 1 THEN 1 ELSE 0 END) AS both_roles,
+                        SUM(CASE WHEN is_client = 0 AND is_master = 0 THEN 1 ELSE 0 END) AS unknown_role,
+                        SUM(CASE WHEN opted_out = 1 THEN 1 ELSE 0 END) AS opted_out,
+                        SUM(CASE WHEN blocked = 1 THEN 1 ELSE 0 END) AS blocked,
+                        SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) AS active_7,
+                        SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END) AS active_30,
+                        SUM(CASE WHEN substr(first_seen, 1, 10) = ? THEN 1 ELSE 0 END) AS new_today,
+                        SUM(CASE WHEN first_seen >= ? THEN 1 ELSE 0 END) AS new_7
+                    FROM users
+                    WHERE consent_at IS NOT NULL
+                    """,
+                    (week_s, month_s, today.isoformat(), week_s),
+                ).fetchone()
+                top = conn.execute(
+                    """
+                    SELECT event, COUNT(*) AS qty
+                    FROM events
+                    WHERE ts >= ?
+                    GROUP BY event
+                    ORDER BY qty DESC
+                    LIMIT 8
+                    """,
+                    (month_s,),
+                ).fetchall()
     lines = [
         "<b>Статистика Telegram-бота</b>",
         "",
@@ -987,9 +1184,10 @@ def start(message):
     if message.chat.type != "private":
         return
     flows.pop(message.chat.id, None)
-    actions = types.InlineKeyboardMarkup()
-    actions.add(types.InlineKeyboardButton("Так, увійти", callback_data="enter:yes"))
-    bot.send_message(message.chat.id, ENTRY_NOTICE, reply_markup=actions)
+    if has_consent(message.chat.id):
+        menu(message.chat.id)
+    else:
+        send_entry_prompt(message.chat.id)
 
 @bot.message_handler(commands=["privacy"])
 def privacy_info(message):
@@ -1101,6 +1299,9 @@ def dispatch(message):
         return
     chat_id = message.chat.id
     text = message.text.strip()
+    if chat_id != ADMIN_CHAT_ID and not has_consent(chat_id):
+        send_entry_prompt(chat_id)
+        return
     track_message(message)
     if text in (HOME, CANCEL):
         flows.pop(chat_id, None)
