@@ -42,6 +42,27 @@ USER_DB_PATH = Path(os.getenv("USER_DB_PATH", str(DATA_DIR / "users.sqlite3")))
 DB_LOCK = threading.Lock()
 pending_broadcasts = {}
 
+PRIVACY_NOTICE = (
+    "Під час використання бот зберігає технічні дані, потрібні для роботи сервісу "
+    "та внутрішньої статистики. Деталі: /privacy"
+)
+
+PRIVACY_TEXT = (
+    "<b>Конфіденційність</b>\n\n"
+    "Під час взаємодії з ботом Telegram передає технічні дані, зокрема chat_id, "
+    "ім'я та username, якщо він є. Бот може зберігати дату першого й останнього "
+    "звернення та інформацію про те, які розділи відкривалися, щоб підтримувати "
+    "роботу сервісу, бачити загальну статистику та розуміти інтерес до послуг "
+    "салону, навчання й професійних матеріалів.\n\n"
+    "Телефон та інші контактні дані зберігаються лише тоді, коли ви самі надсилаєте "
+    "їх у заявці або замовленні. Дані не публікуються у відкритому доступі.\n\n"
+    "Рекламні повідомлення не надсилаються автоматично. Якщо в майбутньому буде "
+    "запропонована підписка на новини або пропозиції, її можна буде вимкнути командою "
+    "/unsubscribe.\n\n"
+    "З питань щодо даних можна звернутися до адміністратора: " + ADMIN_LINK
+)
+
+
 EVENT_LABELS = {
     "start": "Запустили бот",
     "salon": "Салон",
@@ -942,19 +963,16 @@ def start(message):
         return
     track_message(message, event="start")
     flows.pop(message.chat.id, None)
-    if not user_has_segment(message.chat.id):
-        roles = types.InlineKeyboardMarkup()
-        roles.row(
-            types.InlineKeyboardButton("Я клієнт салону", callback_data="role:client"),
-            types.InlineKeyboardButton("Я майстер / колорист", callback_data="role:master"),
-        )
-        bot.send_message(
-            message.chat.id,
-            "Щоб ми показували вам релевантну інформацію, оберіть, хто ви. "
-            "Це також можна просто пропустити.",
-            reply_markup=roles,
-        )
+    bot.send_message(message.chat.id, PRIVACY_NOTICE)
     menu(message.chat.id)
+
+@bot.message_handler(commands=["privacy"])
+def privacy_info(message):
+    if message.chat.type != "private":
+        return
+    track_message(message)
+    bot.send_message(message.chat.id, PRIVACY_TEXT, disable_web_page_preview=True)
+
 
 @bot.message_handler(commands=["id"])
 def show_id(message):
