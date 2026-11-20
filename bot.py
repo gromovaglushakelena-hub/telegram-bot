@@ -46,6 +46,7 @@ HAIRCUT = "Стрижка"
 BOOK = "📝 Консультація / запис"
 HOME_CARE = "Домашній догляд"
 COLOR_BOX = "Color Box"
+TRAINING = "🎓 Навчання для майстрів"
 GRAY_CHANNEL = "GRAY FUSION | Все про сивину"
 GRAY_CHANNEL_URL = "https://t.me/gromova_sedina_kiev"
 PRO_CARE = "Для салонів краси"
@@ -149,7 +150,7 @@ def keyboard(rows):
 def menu(chat_id):
     section[chat_id] = "main"
     bot.send_message(chat_id, "Вітаємо у Space of Beauty by Gromova. Оберіть розділ:",
-                     reply_markup=keyboard([[SALON, SHOP], [GRAY_CHANNEL], [CART], [MAP_MENU], [CONTACT]]))
+                     reply_markup=keyboard([[SALON, SHOP], [TRAINING], [GRAY_CHANNEL], [CART], [MAP_MENU], [CONTACT]]))
 
 
 SALON_MAP_URL = (
@@ -679,6 +680,30 @@ def collect(chat_id, message, text):
     else:
         bot.send_message(chat_id, fields[flow["step"]][1])
 
+TRAINING_TEXT = '<b>АВТОРСЬКА СИСТЕМА GRAY FUSION BY GROMOVA</b>\nДводенний практичний курс підвищення кваліфікації для колористів.\n\nGRAY FUSION — система роботи з клієнтами із сивиною. Вона дозволяє візуально поєднати природну сивину з пофарбованим волоссям, уникнути різкої межі відростання та вибудувати подальший супровід клієнта.\n\n<b>ДЕНЬ 1 — ТЕОРІЯ</b>\n\n<b>1. Що таке GRAY FUSION</b>\nПринцип злиття сивини, природне відростання, відмінності від мелірування, AirTouch і балаяжу. Кому підходить система, обмеження та визначення кінцевої мети.\n\n<b>2. Діагностика клієнта із сивиною</b>\nВідсоток, тип і розташування сивини, осередкова сивина, натуральна й косметична база, історія фарбувань, якість, щільність і пористість волосся. Оцінка реалістичного результату.\n\n<b>3. Побудова малюнка GRAY FUSION</b>\nЧитання природного малюнка сивини та відтворення його у фарбуванні. Фронтальна зона, проділ, скроні, осередкова сивина. Набір, щільність і розташування пасом без смуг і плям.\n\n<b>4. Перехід зі складних вихідних баз</b>\nБагаторічне фарбування коренів, темна косметична база, старий AirTouch або мелірування, надлишок блонду, плями, смуги, затемнення та різні рівні глибини тону. Поетапний перехід зі збереженням якості волосся.\n\n<b>5. Освітлення</b>\nВибір продукту й окисника, робота з натуральною та косметичною базою, поділ голови, послідовність і контроль освітлення, зупинка реакції. Робота з тонким, щільним, пористим і раніше освітленим волоссям. Типові помилки та пошкодження.\n\n<b>6. Нейтралізація та вирівнювання кольору</b>\nКоли і як нейтралізувати небажаний фон освітлення, вирівнювати неоднорідне полотно й працювати з різними зонами на одній голові.\n\n<b>7. Тонування</b>\nРобочі формули та логіка їх складання. Як поєднати сивину із загальною масою волосся, не перекриваючи її щільним кольором.\n\n<b>8. Камуфляж сивини</b>\nВідмінність від щільного фарбування, показання та обмеження. Камуфляж у системі GRAY FUSION і на наступних візитах.\n\n<b>9. Якість волосся та відновлення</b>\nЗміни волосся під час освітлення, оцінка його ресурсу, збереження якості під час складних переходів. Авторська система відновлення by Gromova.\n\n<b>10. Супровід клієнта після GRAY FUSION</b>\nПлан подальших візитів: камуфляж, тонування, корекції та домашній догляд. Як підтримувати результат без щомісячного зафарбовування коренів.\n\n<b>11. Консультація та робота з клієнтом</b>\nРеалістичні очікування, пояснення стратегії та довгострокова співпраця із салоном.\n\n<b>ДЕНЬ 2 — ПРАКТИКА</b>\n\nПовне практичне відпрацювання: діагностика → стратегія → схема → набір пасом → робота по зонах → освітлення → нейтралізація → вирівнювання → тонування → камуфляж за необхідності → реконструкція → фінальний результат.\n\nМи навчаємо не просто повторювати схему, а самостійно приймати рішення для конкретного клієнта.\n\n<b>КОМУ ПІДХОДИТЬ НАВЧАННЯ?</b>\n\nДосвідченим практикуючим колористам, які знають основи колористики та колірне коло, впевнено виконують мелірування, мають досвід AirTouch, балаяжу й контурингу, розуміють освітлення, нейтралізацію та тонування.\n\n<b>Це не базовий курс.</b> Ми не навчаємо колористики з нуля.\n\nПісля навчання ви зможете не просто виконувати GRAY FUSION, а розуміти, що робити з конкретним клієнтом сьогодні та як вести його далі.\n\nЩоб дізнатися вартість, найближчі дати та записатися, натисніть кнопку нижче.'
+
+def show_training(chat_id):
+    section[chat_id] = "training"
+    # Telegram messages have a 4096-character limit; split on paragraph boundaries.
+    paragraphs = TRAINING_TEXT.split("\n\n")
+    chunks, current = [], ""
+    for paragraph in paragraphs:
+        candidate = current + ("\n\n" if current else "") + paragraph
+        if len(candidate) > 3500:
+            if current:
+                chunks.append(current)
+            current = paragraph
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    for chunk in chunks[:-1]:
+        bot.send_message(chat_id, chunk)
+    actions = types.InlineKeyboardMarkup()
+    actions.add(types.InlineKeyboardButton("Дізнатися вартість та записатися", url=ADMIN_LINK))
+    bot.send_message(chat_id, chunks[-1], reply_markup=actions)
+    bot.send_message(chat_id, "Повернутися до меню:", reply_markup=keyboard([[BACK, HOME]]))
+
 @bot.message_handler(commands=["start", "help"])
 def start(message):
     if message.chat.type != "private":
@@ -707,7 +732,7 @@ def dispatch(message):
             catalog(chat_id, product_category.get(selection.get(chat_id), HOME_CARE))
         elif current == "catalog":
             shop(chat_id)
-        elif current in ("price", "haircut", "windows", "team", "salon_intro"):
+        elif current in ("price", "haircut", "windows", "team", "salon_intro", "training"):
             salon(chat_id)
         else:
             menu(chat_id)
@@ -725,6 +750,8 @@ def dispatch(message):
         return
     if text == SALON:
         salon(chat_id)
+    elif text == TRAINING:
+        show_training(chat_id)
     elif text == GRAY_CHANNEL:
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("Перейти до каналу про сивину", url=GRAY_CHANNEL_URL))
