@@ -56,6 +56,13 @@ USER_DB_PATH = Path(os.getenv("USER_DB_PATH", str(DATA_DIR / "users.sqlite3")))
 DB_LOCK = threading.Lock()
 pending_broadcasts = {}
 
+ENTRY_TERMS_LINK = '<a href="https://t.me/EG_by_gromova_shop_bot?start=terms">Умови</a>'
+ENTRY_PROMPT_SCHEMA = """
+    CREATE TABLE IF NOT EXISTS entry_prompts (
+        chat_id BIGINT PRIMARY KEY,
+        message_id BIGINT NOT NULL
+    )
+"""
 ENTRY_TERMS_TEXT = (
     "<b>Умови користування ботом</b>\n\n"
     "Натискаючи «Увійти», ви погоджуєтеся на обробку технічних даних для роботи "
@@ -132,6 +139,7 @@ def init_user_db():
                         ts TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
                 """)
+                conn.execute(ENTRY_PROMPT_SCHEMA)
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_users_last_seen ON users(last_seen)")
@@ -163,6 +171,7 @@ def init_user_db():
                     CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
                     CREATE INDEX IF NOT EXISTS idx_events_chat ON events(chat_id);
                 """)
+                conn.execute(ENTRY_PROMPT_SCHEMA)
                 columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
                 if "consent_at" not in columns:
                     conn.execute("ALTER TABLE users ADD COLUMN consent_at TEXT")
@@ -306,12 +315,39 @@ def has_consent(chat_id):
     return bool(row and row["consent_at"])
 
 
+def remove_entry_buttons(chat_id, message_id):
+    try:
+        bot.edit_message_reply_markup(chat_id, message_id, reply_markup=None)
+    except telebot.apihelper.ApiTelegramException as exc:
+        description = exc.description.lower()
+        if exc.error_code != 400 or not any(reason in description for reason in (
+            "message is not modified", "message to edit not found", "message can't be edited"
+        )):
+            raise
+
+
 def send_entry_prompt(chat_id):
     actions = types.InlineKeyboardMarkup()
     actions.add(types.InlineKeyboardButton("Увійти", callback_data="enter:v1"))
-    actions.add(types.InlineKeyboardButton("Умови", callback_data="enter:terms"))
-    # Telegram requires a message body to attach an inline keyboard.
-    bot.send_message(chat_id, "\u2063", reply_markup=actions)
+    connect = pg_connect if USE_POSTGRES else sqlite_connect
+    param = "%s" if USE_POSTGRES else "?"
+    with connect() as conn:
+        if USE_POSTGRES:
+            conn.execute("SELECT pg_advisory_xact_lock(%s)", (int(chat_id),))
+        else:
+            conn.execute("BEGIN IMMEDIATE")
+        previous = conn.execute(
+            f"SELECT message_id FROM entry_prompts WHERE chat_id = {param}", (chat_id,)
+        ).fetchone()
+        if previous:
+            remove_entry_buttons(chat_id, previous["message_id"])
+        prompt = bot.send_message(chat_id, "Бажаєте увійти до бота?", reply_markup=actions)
+        conn.execute(
+            f"INSERT INTO entry_prompts (chat_id, message_id) VALUES ({param}, {param}) "
+            "ON CONFLICT (chat_id) DO UPDATE SET message_id = excluded.message_id",
+            (chat_id, prompt.message_id),
+        )
+    bot.send_message(chat_id, ENTRY_TERMS_LINK, disable_web_page_preview=True)
 
 
 def set_role(chat_id, role):
@@ -1202,9 +1238,22 @@ def show_training(chat_id):
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    if message.chat.type == "private":
-        flows.pop(message.chat.id, None)
-        send_entry_prompt(message.chat.id)
+    if message.chat.type != "private":
+        return
+    if message.text.split()[1:] == ["terms"]:
+        bot.send_message(message.chat.id, ENTRY_TERMS_TEXT)
+        return
+    reply = message.reply_to_message
+    if reply and reply.from_user and reply.from_user.id == bot.user.id:
+        old_notice = reply.text == "\u2063" or (reply.text or "").startswith(
+            "Бажаєте увійти до бота?\n\nНатискаючи «Так, увійти»"
+        )
+        keyboard = reply.reply_markup.keyboard if reply.reply_markup else []
+        if old_notice or any(button.callback_data in ("enter:yes", "enter:v1")
+                             for row in keyboard for button in row):
+            remove_entry_buttons(message.chat.id, reply.message_id)
+    flows.pop(message.chat.id, None)
+    send_entry_prompt(message.chat.id)
 
 
 @bot.message_handler(commands=["help"])
