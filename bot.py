@@ -56,10 +56,12 @@ USER_DB_PATH = Path(os.getenv("USER_DB_PATH", str(DATA_DIR / "users.sqlite3")))
 DB_LOCK = threading.Lock()
 pending_broadcasts = {}
 
-ENTRY_NOTICE = (
-    "<b>Бажаєте увійти до бота?</b>\n\n"
-    "Натискаючи «Так, увійти», ви погоджуєтесь з обробкою технічних даних "
-    "для роботи бота та внутрішньої статистики. Деталі: /privacy"
+ENTRY_TERMS_TEXT = (
+    "<b>Умови користування ботом</b>\n\n"
+    "Натискаючи «Увійти», ви погоджуєтеся на обробку технічних даних для роботи "
+    "бота та ведення статистики відвідувань. Ви також погоджуєтеся отримувати в "
+    "цьому чаті рекламні повідомлення про послуги салону та косметику EG BY GROMOVA.\n\n"
+    "Якщо згодом ви захочете відписатися від розсилки, надішліть боту команду /unsubscribe."
 )
 
 PRIVACY_TEXT = (
@@ -255,7 +257,7 @@ def track_callback(call, event=None, client=False, master=False):
     register_user(call.message.chat.id, call.from_user, event, client, master)
 
 
-def set_consent(chat_id):
+def set_consent(chat_id, *, current_terms=False):
     if int(chat_id) == ADMIN_CHAT_ID:
         return
     ts = now_dt()
@@ -266,6 +268,11 @@ def set_consent(chat_id):
                     "UPDATE users SET consent_at = COALESCE(consent_at, %s), last_seen = %s WHERE chat_id = %s",
                     (ts, ts, int(chat_id)),
                 )
+                if current_terms:
+                    conn.execute(
+                        "INSERT INTO events (chat_id, event, ts) VALUES (%s, %s, %s)",
+                        (int(chat_id), "entry_terms_v1", ts),
+                    )
         else:
             iso = ts.isoformat(timespec="seconds")
             with sqlite_connect() as conn:
@@ -273,6 +280,11 @@ def set_consent(chat_id):
                     "UPDATE users SET consent_at = COALESCE(consent_at, ?), last_seen = ? WHERE chat_id = ?",
                     (iso, iso, int(chat_id)),
                 )
+                if current_terms:
+                    conn.execute(
+                        "INSERT INTO events (chat_id, event, ts) VALUES (?, ?, ?)",
+                        (int(chat_id), "entry_terms_v1", iso),
+                    )
 
 
 def has_consent(chat_id):
@@ -296,8 +308,10 @@ def has_consent(chat_id):
 
 def send_entry_prompt(chat_id):
     actions = types.InlineKeyboardMarkup()
-    actions.add(types.InlineKeyboardButton("Так, увійти", callback_data="enter:yes"))
-    bot.send_message(chat_id, ENTRY_NOTICE, reply_markup=actions)
+    actions.add(types.InlineKeyboardButton("Увійти", callback_data="enter:v1"))
+    actions.add(types.InlineKeyboardButton("Умови", callback_data="enter:terms"))
+    # Telegram requires a message body to attach an inline keyboard.
+    bot.send_message(chat_id, "\u2800", reply_markup=actions)
 
 
 def set_role(chat_id, role):
@@ -706,13 +720,20 @@ def show_salon_intro(chat_id):
     bot.send_message(chat_id, SALON_INTRO_TEXT, reply_markup=markup)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "enter:yes")
+@bot.callback_query_handler(func=lambda call: call.data == "enter:terms")
+def show_entry_terms(call):
+    bot.answer_callback_query(call.id)
+    if call.message and call.message.chat.type == "private":
+        bot.send_message(call.message.chat.id, ENTRY_TERMS_TEXT)
+
+
+@bot.callback_query_handler(func=lambda call: call.data in ("enter:yes", "enter:v1"))
 def enter_bot(call):
     if not call.message or call.message.chat.type != "private":
         bot.answer_callback_query(call.id)
         return
     register_user(call.message.chat.id, call.from_user, event="start")
-    set_consent(call.message.chat.id)
+    set_consent(call.message.chat.id, current_terms=call.data == "enter:v1")
     bot.answer_callback_query(call.id, "Готово")
     menu(call.message.chat.id)
 
@@ -1179,8 +1200,15 @@ def show_training(chat_id):
     bot.send_message(chat_id, chunks[-1], reply_markup=actions)
     bot.send_message(chat_id, "Повернутися до меню:", reply_markup=keyboard([[BACK, HOME]]))
 
-@bot.message_handler(commands=["start", "help"])
+@bot.message_handler(commands=["start"])
 def start(message):
+    if message.chat.type == "private":
+        flows.pop(message.chat.id, None)
+        send_entry_prompt(message.chat.id)
+
+
+@bot.message_handler(commands=["help"])
+def help_menu(message):
     if message.chat.type != "private":
         return
     flows.pop(message.chat.id, None)
