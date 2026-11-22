@@ -311,7 +311,7 @@ def send_entry_prompt(chat_id):
     actions.add(types.InlineKeyboardButton("Увійти", callback_data="enter:v1"))
     actions.add(types.InlineKeyboardButton("Умови", callback_data="enter:terms"))
     # Telegram requires a message body to attach an inline keyboard.
-    bot.send_message(chat_id, "\u2800", reply_markup=actions)
+    bot.send_message(chat_id, "\u2063", reply_markup=actions)
 
 
 def set_role(chat_id, role):
