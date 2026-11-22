@@ -1277,6 +1277,32 @@ def admin_photo_broadcast(message):
     )
 
 
+@bot.message_handler(commands=["broadcast_photo"])
+def admin_photo_broadcast_reply(message):
+    if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
+        return
+    parts = message.text.split(maxsplit=2)
+    reply = message.reply_to_message
+    if (len(parts) < 3 or parts[1].lower() not in ("all", "clients", "masters", "both")
+            or not reply or not reply.photo):
+        bot.send_message(message.chat.id, "Відповідайте на фото командою /broadcast_photo all Текст")
+        return
+    segment, body = parts[1].lower(), parts[2].strip()
+    if not body or len(body) > 3500:
+        bot.send_message(message.chat.id, "Текст має бути від 1 до 3500 символів.")
+        return
+    photo_file_id = reply.photo[-1].file_id
+    pending_broadcasts[message.chat.id] = {
+        "segment": segment, "body": body, "photo_file_id": photo_file_id
+    }
+    count = len(recipient_rows(segment))
+    bot.send_photo(message.chat.id, photo_file_id)
+    bot.send_message(message.chat.id,
+        "<b>Попередній перегляд розсилки з фото</b>\n"
+        f"Отримувачів: <b>{count}</b>\n\n" + html.escape(body)
+        + "\n\nЗапустити: /confirm_broadcast\nСкасувати: /cancel_broadcast")
+
+
 @bot.message_handler(commands=["confirm_broadcast"])
 def confirm_broadcast(message):
     if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
