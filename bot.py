@@ -499,13 +499,17 @@ def stats_text():
     return "\n".join(lines)
 
 
-def broadcast_worker(admin_chat_id, segment, body):
+def broadcast_worker(admin_chat_id, segment, body, photo_file_id=None):
     rows = recipient_rows(segment)
     sent = failed = blocked = 0
     message = html.escape(body) + "\n\nЩоб не отримувати розсилки від бота: /unsubscribe"
     for row in rows:
         chat_id = int(row["chat_id"])
         try:
+            if photo_file_id:
+                # Telegram photo captions are limited to 1024 characters.
+                # Send the original photo and complete text as consecutive messages.
+                bot.send_photo(chat_id, photo_file_id)
             bot.send_message(chat_id, message, disable_web_page_preview=True)
             sent += 1
         except Exception as exc:
@@ -1246,6 +1250,33 @@ def admin_broadcast(message):
     )
 
 
+@bot.message_handler(content_types=["photo"])
+def admin_photo_broadcast(message):
+    if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
+        return
+    caption = (message.caption or "").strip()
+    parts = caption.split(maxsplit=2)
+    if len(parts) < 3 or parts[0] != "/broadcast_photo" or parts[1].lower() not in ("all", "clients", "masters", "both"):
+        return
+    segment, body = parts[1].lower(), parts[2].strip()
+    if not body or len(body) > 3500:
+        bot.send_message(message.chat.id, "Текст має бути від 1 до 3500 символів.")
+        return
+    photo_file_id = message.photo[-1].file_id
+    pending_broadcasts[message.chat.id] = {
+        "segment": segment, "body": body, "photo_file_id": photo_file_id
+    }
+    count = len(recipient_rows(segment))
+    bot.send_photo(message.chat.id, photo_file_id)
+    bot.send_message(
+        message.chat.id,
+        "<b>Попередній перегляд розсилки з фото</b>\n"
+        f"Отримувачів: <b>{count}</b>\n\n"
+        + html.escape(body)
+        + "\n\nЗапустити: /confirm_broadcast\nСкасувати: /cancel_broadcast",
+    )
+
+
 @bot.message_handler(commands=["confirm_broadcast"])
 def confirm_broadcast(message):
     if message.chat.type != "private" or message.chat.id != ADMIN_CHAT_ID:
@@ -1258,7 +1289,7 @@ def confirm_broadcast(message):
     bot.send_message(message.chat.id, f"Запускаю розсилку для {count} отримувачів.")
     threading.Thread(
         target=broadcast_worker,
-        args=(message.chat.id, pending["segment"], pending["body"]),
+        args=(message.chat.id, pending["segment"], pending["body"], pending.get("photo_file_id")),
         daemon=True,
     ).start()
 
