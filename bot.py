@@ -817,17 +817,18 @@ def salon(chat_id):
                      reply_markup=keyboard([[SALON_INTRO], [PRICE], [WINDOWS], [BOOK], [TEAM], [CONTACT], [HOME]]))
 
 # Manually confirmed availability; never infer extra openings from an empty day.
-WINDOWS_UPDATED = "22.11.2026"
+WINDOWS_UPDATED = "27.11.2026"
 WINDOW_SERVICES = {
     "GRAY FUSION": {
-        "2026-11-23": ["12:30"],
-        "2026-11-27": ["12:30"],
-        "2026-12-01": ["10:00"]
+        "2026-11-27": ["10:00"],
+        "2026-12-01": ["10:00"],
+        "2026-12-03": ["10:00"],
+        "2026-12-04": ["10:00"]
     },
     "камуфляж / тонування": {
-        "2026-11-23": ["12:30"],
-        "2026-11-24": ["10:00", "16:30"],
-        "2026-11-29": ["15:30"]
+        "2026-11-29": ["16:30"],
+        "2026-12-04": ["15:00"],
+        "2026-12-12": ["13:00"]
     },
     "жіноча стрижка": {
         "2026-11-24": ["10:00"],
@@ -860,7 +861,7 @@ def window_date_label(day):
 def available_windows(today=None):
     today = today or datetime.now(ZoneInfo("Europe/Kyiv")).date()
     first = today
-    last = today + timedelta(days=14)
+    last = today + timedelta(days=21)
     slots = {}
 
     def eligible(day):
